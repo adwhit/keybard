@@ -292,6 +292,12 @@ fn the_hud_says_when_midi_is_off() {
         MidiStatus::Connected("Yamaha P-125".into()).label(),
         "MIDI: Yamaha P-125"
     );
+    // Unplugging isn't fatal: the HUD says it's waiting for the keyboard.
+    assert_eq!(
+        MidiStatus::Unplugged("Yamaha P-125".into()).label(),
+        "MIDI: Yamaha P-125 unplugged, waiting for it"
+    );
+    assert!(MidiStatus::NoDevices.label().contains("plug one in"));
 }
 
 #[test]

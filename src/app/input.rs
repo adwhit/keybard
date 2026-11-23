@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::thread;
+use std::time::Duration;
 
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, Sender};
@@ -11,7 +12,7 @@ use super::audio::PlayTone;
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, MidiInput, Phase};
 use crate::dynamics::Velocity;
-use crate::midi_port::{PortChoice, select_port};
+use crate::midi_port::{PortAction, PortChoice, next_action};
 use crate::music::MidiNote;
 use crate::performance::PressOutcome;
 use crate::song::Seconds;
@@ -168,6 +169,7 @@ pub enum MidiStatus {
     Connected(String),
     NoDevices,
     NoMatch(String),
+    Unplugged(String),
     Failed(String),
 }
 
@@ -177,8 +179,9 @@ impl MidiStatus {
             Self::Off => "MIDI off".to_owned(),
             Self::Connecting => "MIDI: looking for a keyboard".to_owned(),
             Self::Connected(name) => format!("MIDI: {name}"),
-            Self::NoDevices => "MIDI: no keyboard found".to_owned(),
+            Self::NoDevices => "MIDI: no keyboard yet (plug one in any time)".to_owned(),
             Self::NoMatch(wanted) => format!("MIDI: no port matching \"{wanted}\""),
+            Self::Unplugged(name) => format!("MIDI: {name} unplugged, waiting for it"),
             Self::Failed(err) => format!("MIDI error: {err}"),
         }
     }
@@ -256,71 +259,85 @@ fn parse_midi_message(bytes: &[u8]) -> Option<(MidiNote, KeyEdge, Velocity)> {
     }
 }
 
-/// Connect to the first MIDI input port on a background thread. The thread
-/// owns the connection and keeps it alive for the lifetime of the app.
+/// How often the watcher re-checks the port list for keyboards coming and
+/// going.
+const PORT_POLL: Duration = Duration::from_secs(1);
+
+/// Watch MIDI input ports on a background thread: connect to the chosen
+/// keyboard whenever it's plugged in, and let go when it's unplugged. The
+/// thread owns the connection for the lifetime of the app.
 fn spawn_midi_listener(
     tx: Sender<(MidiNote, KeyEdge, Velocity)>,
     status: Sender<MidiStatus>,
     choice: PortChoice,
 ) {
-    // The app may already be gone; status updates are best-effort.
-    let report = move |s: MidiStatus| {
-        let _ = status.send(s);
-    };
     let spawned = thread::Builder::new()
         .name("midi-input".into())
         .spawn(move || {
-            let input = match midir::MidiInput::new("keybard") {
-                Ok(input) => input,
-                Err(err) => {
-                    warn!(%err, "MIDI unavailable");
-                    report(MidiStatus::Failed(err.to_string()));
-                    return;
+            let mut connection: Option<(String, midir::MidiInputConnection<()>)> = None;
+            let mut reported: Option<MidiStatus> = None;
+            // The app may already be gone; status updates are best-effort.
+            let mut report = |s: MidiStatus| {
+                if reported.as_ref() != Some(&s) {
+                    info!(status = s.label(), "MIDI");
+                    let _ = status.send(s.clone());
+                    reported = Some(s);
                 }
             };
-            let ports = input.ports();
-            let names: Vec<String> = ports
-                .iter()
-                .map(|p| input.port_name(p).unwrap_or_else(|_| "unknown".into()))
-                .collect();
-            info!(?names, "MIDI input ports");
-            let Some(index) = select_port(&names, &choice) else {
-                match &choice {
-                    PortChoice::First => {
-                        info!("no MIDI input devices found; computer keyboard only");
-                        report(MidiStatus::NoDevices);
+            loop {
+                let input = match midir::MidiInput::new("keybard") {
+                    Ok(input) => input,
+                    Err(err) => {
+                        warn!(%err, "MIDI unavailable");
+                        report(MidiStatus::Failed(err.to_string()));
+                        return;
                     }
-                    PortChoice::Named(wanted) => {
-                        warn!(wanted, "no MIDI port matches");
-                        report(MidiStatus::NoMatch(wanted.clone()));
+                };
+                let ports = input.ports();
+                let names: Vec<String> = ports
+                    .iter()
+                    .map(|p| input.port_name(p).unwrap_or_else(|_| "unknown".into()))
+                    .collect();
+                let current = connection.as_ref().map(|(name, _)| name.as_str());
+                match next_action(current, &names, &choice) {
+                    PortAction::Stay => {}
+                    PortAction::Wait => report(match &choice {
+                        PortChoice::First => MidiStatus::NoDevices,
+                        PortChoice::Named(wanted) => MidiStatus::NoMatch(wanted.clone()),
+                    }),
+                    PortAction::Disconnect => {
+                        if let Some((name, open)) = connection.take() {
+                            open.close();
+                            report(MidiStatus::Unplugged(name));
+                        }
+                    }
+                    PortAction::Connect(index) => {
+                        let name = names[index].clone();
+                        let tx = tx.clone();
+                        let opened = input.connect(
+                            &ports[index],
+                            "keybard-input",
+                            move |_stamp, bytes, _| {
+                                if let Some(event) = parse_midi_message(bytes) {
+                                    // The receiver only disappears when the app exits.
+                                    let _ = tx.send(event);
+                                }
+                            },
+                            (),
+                        );
+                        match opened {
+                            Ok(open) => {
+                                report(MidiStatus::Connected(name.clone()));
+                                connection = Some((name, open));
+                            }
+                            Err(err) => {
+                                warn!(port = %name, %err, "could not open MIDI input");
+                                report(MidiStatus::Failed(err.to_string()));
+                            }
+                        }
                     }
                 }
-                return;
-            };
-            let (port, name) = (&ports[index], names[index].clone());
-            let connection = input.connect(
-                port,
-                "keybard-input",
-                move |_stamp, bytes, _| {
-                    if let Some(event) = parse_midi_message(bytes) {
-                        // The receiver only disappears when the app exits.
-                        let _ = tx.send(event);
-                    }
-                },
-                (),
-            );
-            match connection {
-                Ok(_connection) => {
-                    info!(port = %name, "listening to MIDI input");
-                    report(MidiStatus::Connected(name));
-                    loop {
-                        thread::park();
-                    }
-                }
-                Err(err) => {
-                    warn!(port = %name, %err, "could not open MIDI input");
-                    report(MidiStatus::Failed(err.to_string()));
-                }
+                thread::sleep(PORT_POLL);
             }
         });
     if let Err(err) = spawned {

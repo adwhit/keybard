@@ -196,7 +196,9 @@ that records every judgement as a coloured tick.
 A connected MIDI keyboard is picked up automatically (the first input port).
 `--list-midi-ports` shows what's available, `--midi-port yamaha` picks the
 first port whose name contains "yamaha", and `--no-midi` disables MIDI. The
-HUD shows which device is connected, or why none is.
+HUD shows which device is connected, or why none is. Keyboards can be plugged
+in or out while the app runs: it checks for ports every second, connects when
+the chosen one appears and goes back to waiting when it's unplugged.
 
 ## Development
 
