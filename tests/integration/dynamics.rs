@@ -69,3 +69,50 @@ fn markings_appear_where_the_level_changes() {
 fn uniform_songs_get_one_marking() {
     assert_eq!(markings(&song(&[80, 80, 80])).len(), 1);
 }
+
+#[test]
+fn scores_can_mark_dynamics() {
+    use keybard::song::parse_voice;
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let notes = parse_voice("!pp C4 D4 | !f E4 R !mf F4", Hand::Right, tempo).unwrap();
+    let levels: Vec<&str> = notes
+        .iter()
+        .map(|n| Dynamic::from_velocity(n.velocity).label())
+        .collect();
+    assert_eq!(levels, vec!["pp", "pp", "f", "mf"]);
+    assert!(parse_voice("!loud C4", Hand::Right, tempo).is_err());
+}
+
+#[test]
+fn each_level_has_a_typical_velocity() {
+    [
+        Dynamic::Pianissimo,
+        Dynamic::Piano,
+        Dynamic::MezzoPiano,
+        Dynamic::MezzoForte,
+        Dynamic::Forte,
+        Dynamic::Fortissimo,
+    ]
+    .into_iter()
+    .for_each(|d| assert_eq!(Dynamic::from_velocity(d.velocity()), d));
+}
+
+#[test]
+fn fur_elise_opens_pianissimo() {
+    let song = keybard::builtin::BuiltinSong::FurElise.load().unwrap();
+    assert_eq!(
+        markings(&song).first().map(|(_, d)| *d),
+        Some(Dynamic::Pianissimo)
+    );
+}
+
+#[test]
+fn ode_to_joy_swells_in_its_middle_phrase() {
+    let song = keybard::builtin::BuiltinSong::OdeToJoy.load().unwrap();
+    let bar = song.tempo.bar_length().0;
+    let marks: Vec<(u32, &str)> = markings(&song)
+        .iter()
+        .map(|(t, d)| ((t.0 / bar).round() as u32 + 1, d.label()))
+        .collect();
+    assert_eq!(marks, vec![(1, "mf"), (9, "f"), (13, "mf")]);
+}

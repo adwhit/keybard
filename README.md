@@ -83,8 +83,9 @@ starts at 70%.
 
 ### Dynamics
 
-Every note keeps how hard it's played (MIDI velocity; built-in songs are
-mezzo-forte). The synth plays soft notes quieter, your MIDI keyboard's
+Every note keeps how hard it's played (MIDI velocity). Built-in scores mark
+dynamics with `!pp` .. `!ff` tokens: Fur Elise opens pianissimo, and Ode to
+Joy swells to forte in its middle phrase. The synth plays soft notes quieter, your MIDI keyboard's
 velocity is heard too, and the staff marks pp, p, mp, mf, f or ff between the
 staves wherever the bar-by-bar level changes.
 

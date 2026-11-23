@@ -30,16 +30,18 @@ const ODE_TO_JOY: Score = Score {
     beats_per_bar: 4,
     beam_group: 1.0,
     right: "
+        !mf
         E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | E4/1.5 D4/0.5 D4/2 |
         E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4/1.5 C4/0.5 C4/2 |
-        D4 D4 E4 C4 | D4 E4/0.5 F4/0.5 E4 C4 | D4 E4/0.5 F4/0.5 E4 D4 | C4 D4 G3/2 |
-        E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4/1.5 C4/0.5 C4/2 |
+        !f D4 D4 E4 C4 | D4 E4/0.5 F4/0.5 E4 C4 | D4 E4/0.5 F4/0.5 E4 D4 | C4 D4 G3/2 |
+        !mf E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4/1.5 C4/0.5 C4/2 |
     ",
     left: "
+        !mf
         C3+G3/4 | G2+G3/4 | C3+G3/4 | G2+G3/4 |
         C3+G3/4 | G2+G3/4 | C3+G3/2 A2+E3/2 | G2+D3/2 C3+G3/2 |
-        G2+D3/4 | C3+G3/4 | G2+D3/4 | C3/2 B2/2 |
-        C3+G3/4 | G2+G3/4 | C3+G3/2 A2+E3/2 | G2+D3/2 C3+G3/2 |
+        !f G2+D3/4 | C3+G3/4 | G2+D3/4 | C3/2 B2/2 |
+        !mf C3+G3/4 | G2+G3/4 | C3+G3/2 A2+E3/2 | G2+D3/2 C3+G3/2 |
     ",
 };
 
@@ -49,11 +51,13 @@ const TWINKLE: Score = Score {
     beats_per_bar: 4,
     beam_group: 1.0,
     right: "
+        !p
         C4 C4 G4 G4 | A4 A4 G4/2 | F4 F4 E4 E4 | D4 D4 C4/2 |
         G4 G4 F4 F4 | E4 E4 D4/2 | G4 G4 F4 F4 | E4 E4 D4/2 |
         C4 C4 G4 G4 | A4 A4 G4/2 | F4 F4 E4 E4 | D4 D4 C4/2 |
     ",
     left: "
+        !p
         C3/2 E3/2 | F3/2 E3/2 | D3/2 C3/2 | G2/2 C3/2 |
         E3/2 D3/2 | C3/2 G2/2 | E3/2 D3/2 | C3/2 G2/2 |
         C3/2 E3/2 | F3/2 E3/2 | D3/2 C3/2 | G2/2 C3/2 |
@@ -83,6 +87,7 @@ const FUR_ELISE: Score = Score {
     // 3/8: the printed score beams each bar's sixteenths together.
     beam_group: 3.0,
     right: "
+        !pp
         R/2 E5/0.5 D#5/0.5 |
         E5/0.5 D#5/0.5 E5/0.5 B4/0.5 D5/0.5 C5/0.5 |
         A4 R/0.5 C4/0.5 E4/0.5 A4/0.5 |
@@ -94,6 +99,7 @@ const FUR_ELISE: Score = Score {
         A4/3 |
     ",
     left: "
+        !pp
         R/3 | R/3 |
         A2/0.5 E3/0.5 A3/0.5 R/1.5 |
         E2/0.5 E3/0.5 G#3/0.5 R/1.5 |
@@ -111,12 +117,14 @@ const MINUET: Score = Score {
     beats_per_bar: 3,
     beam_group: 1.0,
     right: "
+        !mf
         D5 G4/0.5 A4/0.5 B4/0.5 C5/0.5 | D5 G4 G4 |
         E5 C5/0.5 D5/0.5 E5/0.5 F#5/0.5 | G5 G4 G4 |
         C5 D5/0.5 C5/0.5 B4/0.5 A4/0.5 | B4 C5/0.5 B4/0.5 A4/0.5 G4/0.5 |
         F#4 G4/0.5 A4/0.5 B4/0.5 G4/0.5 | A4/3 |
     ",
     left: "
+        !mf
         G3+B3/2 A3 | B3/3 |
         C4/3 | B3/3 |
         A3/3 | G3/3 |
@@ -130,12 +138,14 @@ const JINGLE_BELLS: Score = Score {
     beats_per_bar: 4,
     beam_group: 1.0,
     right: "
+        !f
         E4 E4 E4/2 | E4 E4 E4/2 | E4 G4 C4/1.5 D4/0.5 | E4/4 |
         F4 F4 F4/1.5 F4/0.5 | F4 E4 E4 E4/0.5 E4/0.5 | E4 D4 D4 E4 | D4/2 G4/2 |
         E4 E4 E4/2 | E4 E4 E4/2 | E4 G4 C4/1.5 D4/0.5 | E4/4 |
         F4 F4 F4 F4 | F4 E4 E4 E4/0.5 E4/0.5 | G4 G4 F4 D4 | C4/4 |
     ",
     left: "
+        !f
         C3+G3/4 | C3+G3/4 | C3+G3/4 | C3+G3/4 |
         F2+C3/4 | C3+G3/4 | G2+D3/4 | G2+B2/4 |
         C3+G3/4 | C3+G3/4 | C3+G3/4 | C3+G3/4 |

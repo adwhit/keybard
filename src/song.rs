@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Sub};
 
-use crate::dynamics::Velocity;
+use crate::dynamics::{Dynamic, Velocity};
 use crate::error::Error;
 use crate::fingering::{self, Finger};
 use crate::key::KeySignature;
@@ -252,6 +252,8 @@ pub fn parse_pitch(token: &str) -> Result<MidiNote, Error> {
 enum VoiceEvent {
     Chord(Vec<(MidiNote, Option<Finger>)>, Beats),
     Rest(Beats),
+    /// `!p`, `!f`...: the level for the notes that follow.
+    Dynamic(Dynamic),
 }
 
 /// `E4` or `E4@3` (finger 1-5).
@@ -270,6 +272,11 @@ fn parse_fingered_pitch(token: &str) -> Result<(MidiNote, Option<Finger>), Error
 }
 
 fn parse_event(token: &str) -> Result<VoiceEvent, Error> {
+    if let Some(level) = token.strip_prefix('!') {
+        return Dynamic::from_label(level)
+            .map(VoiceEvent::Dynamic)
+            .ok_or_else(|| Error::InvalidNoteToken(token.to_owned()));
+    }
     let (pitches, beats) = match token.split_once('/') {
         Some((p, b)) => (
             p,
@@ -293,7 +300,8 @@ fn parse_event(token: &str) -> Result<VoiceEvent, Error> {
 /// Parse a whitespace-separated voice like `C4 E4/0.5 C4+E4+G4/2 R/1 |`.
 ///
 /// Each token is `pitch[+pitch...][/beats]` or `R[/beats]`; beats default to 1.
-/// A pitch may carry a fingering as `E4@3`.
+/// A pitch may carry a fingering as `E4@3`, and `!pp` .. `!ff` set the
+/// dynamic for the notes that follow.
 /// `|` bar lines are ignored and are only there for readability.
 pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Error> {
     let events = text
@@ -301,10 +309,11 @@ pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Er
         .filter(|t| *t != "|")
         .map(parse_event)
         .collect::<Result<Vec<_>, _>>()?;
-    let (notes, _) = events.into_iter().fold(
-        (Vec::new(), Beats(0.0)),
-        |(mut notes, cursor), event| match event {
-            VoiceEvent::Rest(beats) => (notes, Beats(cursor.0 + beats.0)),
+    let (notes, _, _) = events.into_iter().fold(
+        (Vec::new(), Beats(0.0), Velocity::DEFAULT),
+        |(mut notes, cursor, velocity), event| match event {
+            VoiceEvent::Rest(beats) => (notes, Beats(cursor.0 + beats.0), velocity),
+            VoiceEvent::Dynamic(level) => (notes, cursor, level.velocity()),
             VoiceEvent::Chord(chord, beats) => {
                 notes.extend(chord.into_iter().map(|(pitch, finger)| Note {
                     pitch,
@@ -312,9 +321,9 @@ pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Er
                     duration: tempo.to_seconds(beats),
                     hand,
                     finger,
-                    velocity: Velocity::DEFAULT,
+                    velocity,
                 }));
-                (notes, Beats(cursor.0 + beats.0))
+                (notes, Beats(cursor.0 + beats.0), velocity)
             }
         },
     );

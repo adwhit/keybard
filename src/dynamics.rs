@@ -46,6 +46,31 @@ impl Dynamic {
         }
     }
 
+    pub const ALL: [Self; 6] = [
+        Self::Pianissimo,
+        Self::Piano,
+        Self::MezzoPiano,
+        Self::MezzoForte,
+        Self::Forte,
+        Self::Fortissimo,
+    ];
+
+    pub fn from_label(label: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|d| d.label() == label)
+    }
+
+    /// A typical velocity for playing at this level.
+    pub fn velocity(self) -> Velocity {
+        Velocity(match self {
+            Self::Pianissimo => 24,
+            Self::Piano => 45,
+            Self::MezzoPiano => 64,
+            Self::MezzoForte => 80,
+            Self::Forte => 100,
+            Self::Fortissimo => 118,
+        })
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Pianissimo => "pp",
