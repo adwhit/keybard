@@ -13,4 +13,5 @@ mod practice;
 mod records;
 mod render;
 mod song;
+mod streak;
 mod synth;

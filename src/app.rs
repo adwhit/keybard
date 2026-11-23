@@ -17,6 +17,7 @@ pub mod input;
 pub mod notation;
 pub mod palette;
 pub mod piano;
+pub mod practice;
 pub mod results;
 pub mod section;
 mod snapshot;
@@ -132,6 +133,8 @@ pub struct Options {
     pub loop_from: Option<u32>,
     /// Songs PgUp/PgDn switch between (may be empty).
     pub playlist: songs::Playlist,
+    /// Where the daily practice log lives.
+    pub practice_log: RecordStore,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -236,6 +239,7 @@ pub fn build(options: Options) -> App {
             hud::plugin,
             section::plugin,
             songs::plugin,
+            practice::plugin(options.practice_log),
             heat::plugin,
         ));
     if options.player == Player::Autopilot {

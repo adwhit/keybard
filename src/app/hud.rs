@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::practice::Practice;
 use super::section::SectionLoop;
 use super::songs::SongScoped;
 use super::transport::{PlayState, Transport};
@@ -161,6 +162,7 @@ fn update_info(
     song: Res<ActiveSong>,
     judge: Res<Judge>,
     section: Res<SectionLoop>,
+    practice: Res<Practice>,
 ) {
     let state = match transport.state {
         PlayState::Playing => "",
@@ -179,6 +181,11 @@ fn update_info(
         elapsed = clock(elapsed),
         total = clock(total),
     );
+    text.0.push_str(&format!(
+        "\n{streak}-day streak | {minutes} min today",
+        streak = practice.streak(),
+        minutes = practice.minutes_today()
+    ));
     if let Some(looping) = &section.0 {
         let tempo = song.0.tempo;
         let first = looping.region.first_bar(tempo);

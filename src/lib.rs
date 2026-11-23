@@ -14,6 +14,7 @@ pub mod practice;
 pub mod records;
 pub mod render;
 pub mod song;
+pub mod streak;
 pub mod synth;
 
 pub use error::Error;

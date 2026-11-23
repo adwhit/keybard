@@ -49,6 +49,7 @@ impl Harness {
             hands: Hands::Both,
             loop_from: None,
             playlist: Default::default(),
+            practice_log: RecordStore::Memory,
         })
     }
 
@@ -777,6 +778,7 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
         hands: Hands::Both,
         loop_from: Some(5),
         playlist: Default::default(),
+        practice_log: RecordStore::Memory,
     });
     let region = h
         .world()
@@ -975,6 +977,7 @@ fn playlist_harness(mode: PlayMode) -> Harness {
         hands: Hands::Both,
         loop_from: None,
         playlist,
+        practice_log: RecordStore::Memory,
     })
 }
 
@@ -1143,4 +1146,56 @@ fn beam_groups_are_built_for_the_song() {
         StemDirection::Down,
         "high notes: stems down"
     );
+}
+
+#[test]
+fn playing_time_is_logged_and_the_streak_shown() {
+    use keybard::app::practice::Practice;
+    use keybard::streak::MIN_DAILY_PRACTICE;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let today = h.world().resource::<Practice>().today;
+    let yesterday = keybard::streak::Day(today.0 - 1);
+    h.world()
+        .resource_mut::<Practice>()
+        .log
+        .add(yesterday, MIN_DAILY_PRACTICE);
+    h.run_until(1.0);
+    let logged = h.world().resource::<Practice>().log.on(today).0;
+    assert!(logged > 4.5 && logged < 5.5, "lead-in + a second: {logged}");
+    // Paused time doesn't count.
+    h.tap(KeyCode::Space);
+    h.frames(120);
+    let paused = h.world().resource::<Practice>().log.on(today).0;
+    assert!((paused - logged).abs() < 0.1);
+    let info: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(
+        info.iter()
+            .any(|t| t.contains("1-day streak") && t.contains("0 min today")),
+        "{info:?}"
+    );
+}
+
+#[test]
+fn crossing_the_daily_minimum_celebrates_the_streak() {
+    use keybard::app::practice::Practice;
+    use keybard::song::Seconds;
+    use keybard::streak::{Day, MIN_DAILY_PRACTICE};
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let today = h.world().resource::<Practice>().today;
+    {
+        let mut practice = h.world().resource_mut::<Practice>();
+        practice.log.add(Day(today.0 - 2), MIN_DAILY_PRACTICE);
+        practice.log.add(Day(today.0 - 1), MIN_DAILY_PRACTICE);
+        practice.log.add(today, Seconds(MIN_DAILY_PRACTICE.0 - 0.5));
+    }
+    let mut celebrated = false;
+    (0..60).for_each(|_| {
+        h.app.update();
+        celebrated |= h.texts().contains(&"3-DAY STREAK!".to_owned());
+    });
+    assert!(celebrated);
+    assert_eq!(h.world().resource::<Practice>().streak(), 3);
 }

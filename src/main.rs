@@ -131,6 +131,11 @@ fn main() -> ExitCode {
             }
         };
     }
+    let transient = cli.headless || cli.snapshot.is_some();
+    let practice_log = match (transient, records::default_path()) {
+        (false, Some(bests)) => RecordStore::File(bests.with_file_name("practice.tsv")),
+        _ => RecordStore::Memory,
+    };
     let records = match (&cli.records, cli.headless || cli.snapshot.is_some()) {
         (Some(path), _) => RecordStore::File(path.clone()),
         (None, true) => RecordStore::Memory,
@@ -163,6 +168,7 @@ fn main() -> ExitCode {
         hands: cli.hands.into(),
         loop_from: cli.loop_from,
         playlist,
+        practice_log,
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

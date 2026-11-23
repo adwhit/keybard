@@ -122,6 +122,12 @@ Reading ahead: your bars brighten over their last half-second of fall, and a
 key takes on a pale tint of your hand's colour just before one of your notes
 reaches it, so your eyes can move to the keyboard early.
 
+Practice habit: time spent playing (wall-clock, so slowed practice counts in
+full) is logged per day next to your bests (`practice.tsv`). At least a minute
+on a day extends your day streak. The HUD and results card show the streak and
+today's minutes, and crossing the day's minute announces "3-DAY STREAK!".
+Days are UTC.
+
 Feedback while playing: particle bursts and key flashes on hits, floating
 PERFECT/GREAT/GOOD/MISS text, a combo counter that brightens as the multiplier
 climbs, combo milestones, streak heat (the backdrop warms from violet through
@@ -188,6 +194,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/streak.rs`: per-day practice log and day streaks
 - `src/key.rs`: key-signature inference and pitch spelling
 - `src/notation.rs`: where rests go (gaps split at bar lines into standard values)
 - `src/fingering.rs`: automatic fingering (dynamic programming, ergonomic costs)

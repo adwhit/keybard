@@ -11,6 +11,7 @@ use crate::performance::{Insights, Score, Timing};
 use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
 
+use super::practice::Practice;
 use super::section::LOOP_BARS;
 use super::songs::SongScoped;
 
@@ -112,6 +113,7 @@ fn show_card(
     result: Option<Res<LastResult>>,
     cards: Query<Entity, With<ResultsCard>>,
     transport: Res<Transport>,
+    practice: Res<Practice>,
 ) {
     let Some(result) = result else {
         cards.iter().for_each(|e| commands.entity(e).despawn());
@@ -119,7 +121,7 @@ fn show_card(
     };
     if result.is_added() && transport.state == PlayState::Finished {
         cards.iter().for_each(|e| commands.entity(e).despawn());
-        spawn_card(&mut commands, &result);
+        spawn_card(&mut commands, &result, &practice);
     }
 }
 
@@ -134,7 +136,7 @@ fn text(value: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     )
 }
 
-fn spawn_card(commands: &mut Commands, result: &LastResult) {
+fn spawn_card(commands: &mut Commands, result: &LastResult, practice: &Practice) {
     let score = &result.score;
     let grade = score.grade();
     let (grade_label, grade_color) =
@@ -231,6 +233,15 @@ fn spawn_card(commands: &mut Commands, result: &LastResult) {
             result.insights.summary().into_iter().for_each(|line| {
                 card.spawn(text(line, 13.0, palette::timing(Timing::Great)));
             });
+            card.spawn(text(
+                format!(
+                    "{}-day streak | {} min practised today",
+                    practice.streak(),
+                    practice.minutes_today()
+                ),
+                13.0,
+                palette::FIRE,
+            ));
             card.spawn(text(
                 "Space to play again | Tab to change mode | Esc to quit",
                 12.0,
