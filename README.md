@@ -84,6 +84,10 @@ your weakest 4-bar stretch: press F3 there to start drilling it in a loop.
 Bests are saved in the user data directory, or a file passed with `--records`.
 Headless and snapshot runs never touch your bests.
 
+Reading ahead: your bars brighten over their last half-second of fall, and a
+key takes on a pale tint of your hand's colour just before one of your notes
+reaches it, so your eyes can move to the keyboard early.
+
 Feedback while playing: particle bursts and key flashes on hits, floating
 PERFECT/GREAT/GOOD/MISS text, a combo counter that brightens as the multiplier
 climbs, combo milestones, streak heat (the backdrop warms from violet through

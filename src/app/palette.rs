@@ -1,5 +1,6 @@
 use bevy::prelude::{Color, Mix};
 
+use crate::music::KeyColor;
 use crate::performance::{Grade, Timing};
 use crate::song::Hand;
 
@@ -44,6 +45,14 @@ pub fn hand_lit(hand: Hand) -> Color {
     match hand {
         Hand::Right => Color::srgb(0.62, 1.0, 0.72),
         Hand::Left => Color::srgb(0.62, 0.80, 1.0),
+    }
+}
+
+/// A key tinted ahead of its note, keeping a hint of the key's own colour.
+pub fn hand_hint(hand: Hand, key: KeyColor) -> Color {
+    match key {
+        KeyColor::White => WHITE_KEY.mix(&self::hand(hand), 0.45),
+        KeyColor::Black => BLACK_KEY.mix(&self::hand(hand), 0.55),
     }
 }
 

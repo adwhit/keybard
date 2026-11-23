@@ -21,7 +21,7 @@ use keybard::app::{
     RecordStore, palette,
 };
 use keybard::layout;
-use keybard::music::MidiNote;
+use keybard::music::{KeyColor, MidiNote};
 use keybard::performance::{Hands, NoteStatus, PlayMode, Score, Timing};
 use keybard::records::{RecordKey, Records, Submission};
 use keybard::song::{Hand, NoteId, Seconds, Song, Tempo, parse_voice};
@@ -771,4 +771,43 @@ fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
     assert!(h.time() < region.start, "starts with a lead-in");
     assert_eq!(h.score(), Score::default(), "fresh score for the drill");
     assert_eq!(h.count::<ResultsCard>(), 0);
+}
+
+#[test]
+fn keys_hint_just_before_their_notes_arrive() {
+    use keybard::app::piano::APPROACH;
+    let mut h = Harness::new(song(), PlayMode::Wait);
+    // E4 starts at 1.0s; C4 is gated at 0.0 so press it to let time run.
+    h.run_until(0.0);
+    h.midi(60, KeyEdge::Down);
+    h.midi(48, KeyEdge::Down);
+    h.midi(60, KeyEdge::Up);
+    h.midi(48, KeyEdge::Up);
+    h.run_until(1.0 - APPROACH.0 - 0.1);
+    assert_eq!(h.key_color(64), palette::WHITE_KEY, "too early to hint");
+    h.run_until(1.0 - APPROACH.0 / 2.0);
+    assert_eq!(
+        h.key_color(64),
+        palette::hand_hint(Hand::Right, KeyColor::White)
+    );
+    assert_ne!(h.key_color(64), palette::WHITE_KEY);
+}
+
+#[test]
+fn bars_brighten_as_they_approach() {
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let lightness = |h: &mut Harness| {
+        let mut q = h.world().query::<(&FallingBar, &Sprite)>();
+        let color = q
+            .iter(h.app.world())
+            .find(|(b, _)| b.0 == NoteId(E4))
+            .map(|(_, s)| s.color.to_srgba())
+            .unwrap();
+        color.red + color.green + color.blue
+    };
+    h.run_until(0.0);
+    let far = lightness(&mut h);
+    h.run_until(0.95);
+    let near = lightness(&mut h);
+    assert!(near > far + 0.05, "{far} -> {near}");
 }

@@ -52,6 +52,8 @@ impl BarState {
 }
 
 const BAR_GAP: f32 = 2.0;
+/// Seconds over which bars brighten as they approach the hit line.
+const APPROACH_FADE: f32 = 0.6;
 /// Opacity of bars the computer plays for you.
 pub const GHOST_ALPHA: f32 = 0.3;
 const MIN_BAR_HEIGHT: f32 = 14.0;
@@ -209,8 +211,12 @@ fn move_bars(
             }
             transform.translation.y = layout::fall_y(note.start - now);
             let state = BarState::of(judge.0.status(bar.0), note.is_sounding_at(now));
+            // Bars warm towards their lit colour over the last stretch.
+            let approach = 1.0 - ((note.start - now).0 / APPROACH_FADE).clamp(0.0, 1.0);
             let color = match state {
-                BarState::Upcoming => palette::hand(note.hand),
+                BarState::Upcoming => {
+                    palette::hand(note.hand).mix(&palette::hand_lit(note.hand), 0.6 * approach)
+                }
                 BarState::Sounding => palette::hand_lit(note.hand),
                 BarState::Played => palette::hand_played(note.hand),
                 BarState::Missed => palette::MISSED.darker(0.25),

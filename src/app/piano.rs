@@ -9,10 +9,11 @@ use super::heat::HeatGlow;
 use super::input::HeldKeys;
 use super::textures::Textures;
 use super::transport::Transport;
-use super::{ActiveSong, Keys, Phase, palette};
+use super::{ActiveSong, Judge, Keys, Phase, palette};
 use crate::layout::{self, KeyGeometry};
 use crate::music::{KeyColor, MidiNote, PitchClass};
-use crate::song::Hand;
+use crate::performance::NoteStatus;
+use crate::song::{Hand, Seconds};
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PianoKey {
@@ -85,15 +86,21 @@ pub enum KeyLight {
     Correct(Hand),
     /// The player is holding it but nothing is playing there.
     Stray,
+    /// One of the player's notes arrives here within [`APPROACH`].
+    Upcoming(Hand),
 }
 
+/// How far ahead keys start hinting at their next note.
+pub const APPROACH: Seconds = Seconds(0.35);
+
 impl KeyLight {
-    fn of(held: bool, sounding: Option<Hand>) -> Self {
-        match (held, sounding) {
-            (true, Some(hand)) => Self::Correct(hand),
-            (true, None) => Self::Stray,
-            (false, Some(hand)) => Self::Cue(hand),
-            (false, None) => Self::Idle,
+    fn of(held: bool, sounding: Option<Hand>, upcoming: Option<Hand>) -> Self {
+        match (held, sounding, upcoming) {
+            (true, Some(hand), _) => Self::Correct(hand),
+            (true, None, _) => Self::Stray,
+            (false, Some(hand), _) => Self::Cue(hand),
+            (false, None, Some(hand)) => Self::Upcoming(hand),
+            (false, None, None) => Self::Idle,
         }
     }
 
@@ -104,6 +111,7 @@ impl KeyLight {
             (Self::Cue(hand), _) => palette::hand(hand),
             (Self::Correct(hand), _) => palette::hand_lit(hand),
             (Self::Stray, _) => palette::PRESSED,
+            (Self::Upcoming(hand), key) => palette::hand_hint(hand, key),
         }
     }
 
@@ -120,7 +128,20 @@ fn color_keys(
     held: Res<HeldKeys>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
+    judge: Res<Judge>,
 ) {
+    let now = transport.time;
+    let upcoming: HashMap<MidiNote, Hand> = song
+        .0
+        .iter()
+        .filter(|(id, n)| {
+            n.start > now
+                && n.start <= now + APPROACH
+                && judge.0.is_players(&song.0, *id)
+                && judge.0.status(*id) == NoteStatus::Pending
+        })
+        .map(|(_, n)| (n.pitch, n.hand))
+        .collect();
     let sounding: HashMap<MidiNote, Hand> = song
         .0
         .notes()
@@ -130,7 +151,11 @@ fn color_keys(
         .collect();
     keys.iter_mut()
         .for_each(|(key, mut sprite, mut transform)| {
-            let light = KeyLight::of(held.0.contains(&key.note), sounding.get(&key.note).copied());
+            let light = KeyLight::of(
+                held.0.contains(&key.note),
+                sounding.get(&key.note).copied(),
+                upcoming.get(&key.note).copied(),
+            );
             sprite.color = light.color(key.color);
             // Pressed keys sink, opening a dark sliver above them.
             transform.translation.y = if light.is_pressed() {
