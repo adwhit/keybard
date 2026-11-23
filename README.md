@@ -47,6 +47,14 @@ Every start, restart and replay begins with at least a bar of lead-in. A
 metronome clicks the last bar (accent on the first beat) while a big
 countdown shows the beats left before the first note.
 
+### Looping a section
+
+F3 loops the 4 bars you're in, or start with `--loop 9` to drill bars 9-12.
+When the clock reaches the end of the section it rewinds to a lead-in before
+it, re-arms the notes and counts a pass. The HUD shows the pass number, how
+many passes were clean, and the last pass's hits, misses and wrong notes. The
+section is highlighted on the progress strip. F3 again stops looping.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand
@@ -80,6 +88,7 @@ that records every judgement as a coloured tick.
 | Tab | cycle mode |
 | F1 | show / hide note names on bars |
 | F2 | practise both hands / right / left |
+| F3 | loop the current 4 bars / stop looping |
 | Backspace | restart |
 | Esc | quit |
 | Z S X D C V … | play the lower octave (C3 by default) |
@@ -127,6 +136,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
   notation, HUD, effects, results, autopilot, generated textures and
@@ -137,7 +147,7 @@ Layout:
 Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, bar
 lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, one-hand practice, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and
+bests, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and
 sine-wave audio.
 
 Not yet done: key signatures and flats (all accidentals are written as

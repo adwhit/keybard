@@ -38,7 +38,7 @@ impl Harness {
     }
 
     fn with(song: Song, mode: PlayMode, player: Player, records: RecordStore) -> Self {
-        let mut app = app::build(Options {
+        Self::build(Options {
             song,
             mode,
             midi_input: MidiInput::Disabled,
@@ -47,7 +47,12 @@ impl Harness {
             player,
             records,
             hands: Hands::Both,
-        });
+            loop_from: None,
+        })
+    }
+
+    fn build(options: Options) -> Self {
+        let mut app = app::build(options);
         app.insert_resource(TimeUpdateStrategy::ManualDuration(FRAME));
         app.finish();
         app.cleanup();
@@ -602,4 +607,95 @@ fn a_bar_of_count_in_clicks_and_numbers_before_the_music() {
         (h.time().0 + 4.0).abs() < 0.05,
         "restart goes back to the count-in"
     );
+}
+
+#[test]
+fn looping_a_section_repeats_it_and_counts_passes() {
+    use keybard::app::section::SectionLoop;
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    h.run_until(0.5);
+    h.tap(KeyCode::F3);
+    let region = {
+        let section = h.world().resource::<SectionLoop>();
+        section.0.as_ref().expect("looping").region
+    };
+    assert_eq!(region.start, Seconds(0.0));
+    assert_eq!(region.end, Seconds(3.0), "clipped to the song");
+
+    let passes = |h: &Harness| {
+        h.app
+            .world()
+            .resource::<SectionLoop>()
+            .0
+            .as_ref()
+            .map(|l| (l.passes, l.clean_passes))
+    };
+    let mut max_time = 0.0_f32;
+    while passes(&h).is_some_and(|(p, _)| p < 2) {
+        h.app.update();
+        max_time = max_time.max(h.time().0);
+        assert!(h.time().0 < 60.0, "loop never wrapped");
+    }
+    assert!(max_time < 3.05, "never ran past the loop: {max_time}");
+    assert_eq!(
+        passes(&h),
+        Some((2, 2)),
+        "the autopilot plays both passes cleanly"
+    );
+    assert_ne!(h.transport().state, PlayState::Finished);
+    let last = h
+        .world()
+        .resource::<SectionLoop>()
+        .0
+        .as_ref()
+        .unwrap()
+        .last_pass
+        .unwrap();
+    assert_eq!(
+        (last.hits, last.missed, last.wrong),
+        (4, 0, 0),
+        "every note re-armed and hit"
+    );
+
+    h.tap(KeyCode::F3);
+    assert!(
+        h.world().resource::<SectionLoop>().0.is_none(),
+        "F3 again clears"
+    );
+}
+
+#[test]
+fn starting_with_a_loop_begins_just_before_that_bar() {
+    use keybard::app::section::SectionLoop;
+    let song = keybard::builtin::BuiltinSong::OdeToJoy.load().unwrap();
+    let bar = song.tempo.bar_length();
+    let mut h = Harness::build(Options {
+        song,
+        mode: PlayMode::Wait,
+        midi_input: MidiInput::Disabled,
+        backend: Backend::Headless,
+        logging: Logging::Disabled,
+        player: Player::Human,
+        records: RecordStore::Memory,
+        hands: Hands::Both,
+        loop_from: Some(5),
+    });
+    let region = h
+        .world()
+        .resource::<SectionLoop>()
+        .0
+        .as_ref()
+        .unwrap()
+        .region;
+    assert!(
+        (region.start.0 - 4.0 * bar.0).abs() < 1e-4,
+        "bar 5 starts after 4 bars"
+    );
+    assert!(h.time() < region.start, "begins with a lead-in");
+    assert!(region.start.0 - h.time().0 >= bar.0 - 0.05);
 }

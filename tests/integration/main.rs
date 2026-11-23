@@ -6,5 +6,6 @@ mod layout;
 mod midi_file;
 mod music;
 mod performance;
+mod practice;
 mod records;
 mod song;

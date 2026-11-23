@@ -59,6 +59,9 @@ struct Cli {
     /// Which hands you play; the computer plays the rest (F2 cycles in-app).
     #[arg(long, value_enum, default_value_t = HandsArg::Both)]
     hands: HandsArg,
+    /// Start looping 4 bars from this bar number (F3 toggles in-app).
+    #[arg(long = "loop", value_name = "BAR")]
+    loop_from: Option<u32>,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -129,6 +132,7 @@ fn main() -> ExitCode {
         },
         records,
         hands: cli.hands.into(),
+        loop_from: cli.loop_from,
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

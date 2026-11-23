@@ -17,6 +17,7 @@ pub mod notation;
 pub mod palette;
 pub mod piano;
 pub mod results;
+pub mod section;
 mod snapshot;
 mod textures;
 pub mod transport;
@@ -125,6 +126,8 @@ pub struct Options {
     pub player: Player,
     pub records: RecordStore,
     pub hands: Hands,
+    /// Start looping `section::LOOP_BARS` bars from this (1-based) bar.
+    pub loop_from: Option<u32>,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -181,6 +184,13 @@ pub fn build(options: Options) -> App {
     let keys = KeyRange::covering(low, high);
     let mut performance = Performance::new(&options.song);
     performance.set_hands(options.hands);
+    let mut transport = Transport::new(options.mode, options.song.tempo);
+    let looping = options.loop_from.map(|bar| {
+        let looping = section::Looping::from_bar(options.song.tempo, bar, options.song.duration());
+        transport.time = looping.region.start + transport.start;
+        performance.seek(&options.song, transport.time);
+        looping
+    });
 
     let mut app = App::new();
     app.add_plugins(default_plugins(
@@ -199,7 +209,8 @@ pub fn build(options: Options) -> App {
     app.insert_resource(ClearColor(palette::BACKGROUND))
         .insert_resource(Keys(keys))
         .insert_resource(Judge(performance))
-        .insert_resource(Transport::new(options.mode, options.song.tempo))
+        .insert_resource(transport)
+        .insert_resource(section::SectionLoop(looping))
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
         .add_message::<Feedback>()
@@ -218,6 +229,7 @@ pub fn build(options: Options) -> App {
             falling::plugin,
             notation::plugin,
             hud::plugin,
+            section::plugin,
         ));
     if options.player == Player::Autopilot {
         app.add_plugins(autopilot::plugin);

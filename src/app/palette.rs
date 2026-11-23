@@ -25,6 +25,8 @@ pub const KEY_LABEL: Color = Color::srgb(0.45, 0.45, 0.50);
 pub const HUD_TEXT: Color = Color::srgb(0.85, 0.85, 0.88);
 pub const HUD_DIM: Color = Color::srgb(0.50, 0.50, 0.56);
 pub const PROGRESS_TRACK: Color = Color::srgb(0.16, 0.16, 0.20);
+/// The looped section on the progress strip.
+pub const LOOP_REGION: Color = Color::srgba(1.0, 0.84, 0.30, 0.55);
 pub const PROGRESS_FILL: Color = Color::srgb(0.55, 0.50, 0.90);
 
 pub fn hand(hand: Hand) -> Color {

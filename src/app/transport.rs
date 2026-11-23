@@ -151,7 +151,7 @@ fn controls(
     }
 }
 
-pub(super) fn advance(
+pub fn advance(
     time: Res<Time>,
     mut transport: ResMut<Transport>,
     song: Res<ActiveSong>,
