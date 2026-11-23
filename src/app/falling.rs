@@ -34,6 +34,15 @@ pub struct ShiftMarker;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct BarFinger;
 
+/// Whether the falling bars guide you, or you read from the staff alone (F6).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum View {
+    #[default]
+    Bars,
+    /// Bars and keyboard cues hidden: play from the notation.
+    SightReading,
+}
+
 /// What the bars are labelled with. F1 cycles through these.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarLabels {
@@ -108,6 +117,8 @@ const PANEL_Z: f32 = 5.0;
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(BarLabels::Both)
+        .init_resource::<View>()
+        .add_systems(Update, toggle_view.in_set(Phase::Input))
         .add_systems(Startup, spawn_backdrop)
         .add_systems(Update, (spawn_lanes, spawn_bars).in_set(SongLoad))
         .add_systems(Update, cycle_labels.in_set(Phase::Input))
@@ -243,6 +254,15 @@ fn spawn_bars(
     });
 }
 
+fn toggle_view(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {
+    if keys.just_pressed(KeyCode::F6) {
+        *view = match *view {
+            View::Bars => View::SightReading,
+            View::SightReading => View::Bars,
+        };
+    }
+}
+
 fn cycle_labels(keys: Res<ButtonInput<KeyCode>>, mut labels: ResMut<BarLabels>) {
     if keys.just_pressed(KeyCode::F1) {
         *labels = labels.next();
@@ -275,13 +295,14 @@ fn move_bars(
     transport: Res<Transport>,
     song: Res<ActiveSong>,
     judge: Res<Judge>,
+    view: Res<View>,
 ) {
     let lookahead = layout::fall_lookahead();
     let now = transport.time;
     bars.iter_mut()
         .for_each(|(bar, mut transform, mut sprite, mut visibility)| {
             let note = song.0.note(bar.0);
-            let on_screen = note.start < now + lookahead && note.end() > now;
+            let on_screen = *view == View::Bars && note.start < now + lookahead && note.end() > now;
             *visibility = if on_screen {
                 Visibility::Inherited
             } else {

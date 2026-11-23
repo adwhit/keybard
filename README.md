@@ -105,6 +105,12 @@ Where the hand has to move (a thumb-under, a finger crossing over the thumb,
 or a jump to a new five-finger position), the bar gets an amber strip along
 its bottom edge and an amber digit, so you can see shifts coming.
 
+### Sight-reading
+
+F6 (or `--sight-reading`) hides the falling bars and every keyboard cue (hand
+colours, approach hints, finger digits on keys), so you play from the staff
+alone. Your own presses, hits and misses still show.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand
@@ -165,6 +171,7 @@ that records every judgement as a coloured tick.
 | F3 | loop the current 4 bars / stop looping |
 | F4 | metronome on / off |
 | F5 | achievements gallery |
+| F6 | sight-reading mode (no bars or key cues) |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
 | Esc | quit |

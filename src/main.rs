@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use bevy::app::AppExit;
 use clap::{Parser, ValueEnum};
+use keybard::app::falling::View;
 use keybard::app::songs::{Playlist, SongSource};
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
@@ -69,6 +70,9 @@ struct Cli {
     /// List MIDI input ports and exit.
     #[arg(long)]
     list_midi_ports: bool,
+    /// Start in sight-reading mode: no falling bars or keyboard cues (F6).
+    #[arg(long)]
+    sight_reading: bool,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -184,6 +188,11 @@ fn main() -> ExitCode {
         loop_from: cli.loop_from,
         playlist,
         practice_log,
+        view: if cli.sight_reading {
+            View::SightReading
+        } else {
+            View::Bars
+        },
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

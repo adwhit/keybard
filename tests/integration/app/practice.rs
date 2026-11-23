@@ -109,6 +109,7 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
         loop_from: Some(5),
         playlist: Default::default(),
         practice_log: RecordStore::Memory,
+        view: Default::default(),
     });
     let region = h
         .world()

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::falling::View;
 use super::heat::HeatGlow;
 use super::input::HeldKeys;
 use super::songs::{SongLoad, SongScoped};
@@ -154,6 +155,7 @@ fn color_keys(
     transport: Res<Transport>,
     song: Res<ActiveSong>,
     judge: Res<Judge>,
+    view: Res<View>,
 ) {
     let now = transport.time;
     let upcoming: HashMap<MidiNote, Hand> = song
@@ -176,11 +178,17 @@ fn color_keys(
         .collect();
     keys.iter_mut()
         .for_each(|(key, mut sprite, mut transform)| {
-            let light = KeyLight::of(
+            let light = match KeyLight::of(
                 held.0.contains(&key.note),
                 sounding.get(&key.note).copied(),
                 upcoming.get(&key.note).copied(),
-            );
+            ) {
+                // Sight-reading: the keyboard mustn't give the answer away.
+                KeyLight::Cue(_) | KeyLight::Upcoming(_) if *view == View::SightReading => {
+                    KeyLight::Idle
+                }
+                light => light,
+            };
             sprite.color = light.color(key.color);
             // Pressed keys sink, opening a dark sliver above them.
             transform.translation.y = if light.is_pressed() {
@@ -236,8 +244,21 @@ fn show_key_fingers(
     transport: Res<Transport>,
     song: Res<ActiveSong>,
     judge: Res<Judge>,
+    view: Res<View>,
 ) {
     let now = transport.time;
+    if *view == View::SightReading {
+        keys.iter().for_each(|(_, children)| {
+            children.iter().for_each(|child| {
+                if let Ok(mut digit) = digits.get_mut(child)
+                    && !digit.0.is_empty()
+                {
+                    digit.0.clear();
+                }
+            });
+        });
+        return;
+    }
     let wanted: HashMap<MidiNote, String> = song
         .0
         .iter()

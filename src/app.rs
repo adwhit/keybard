@@ -140,6 +140,8 @@ pub struct Options {
     pub playlist: songs::Playlist,
     /// Where the daily practice log lives.
     pub practice_log: RecordStore,
+    /// Start with falling bars or in sight-reading mode.
+    pub view: falling::View,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -224,6 +226,7 @@ pub fn build(options: Options) -> App {
         .insert_resource(transport)
         .insert_resource(section::SectionLoop(looping))
         .insert_resource(options.playlist)
+        .insert_resource(options.view)
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
         .add_message::<Feedback>()

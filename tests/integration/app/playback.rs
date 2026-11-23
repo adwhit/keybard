@@ -558,3 +558,25 @@ fn chord_symbols_scroll_above_the_staff() {
             )
     );
 }
+
+#[test]
+fn sight_reading_hides_the_bars_and_the_keyboard_cues() {
+    use keybard::app::falling::View;
+    let mut h = Harness::new(song(), PlayMode::Wait);
+    h.run_until(0.0);
+    assert_eq!(h.bar(C4).1, Visibility::Inherited);
+    assert_eq!(h.key_color(60), palette::hand(Hand::Right), "cue before");
+
+    h.tap(KeyCode::F6);
+    assert_eq!(*h.world().resource::<View>(), View::SightReading);
+    h.frames(2);
+    assert_eq!(h.bar(C4).1, Visibility::Hidden, "no bars to follow");
+    assert_eq!(h.key_color(60), palette::WHITE_KEY, "no cue on the key");
+
+    // Your own presses still show.
+    h.midi(60, KeyEdge::Down);
+    assert_eq!(h.key_color(60), palette::hand_lit(Hand::Right));
+
+    h.tap(KeyCode::F6);
+    assert_eq!(*h.world().resource::<View>(), View::Bars);
+}

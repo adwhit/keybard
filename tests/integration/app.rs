@@ -50,6 +50,7 @@ impl Harness {
             loop_from: None,
             playlist: Default::default(),
             practice_log: RecordStore::Memory,
+            view: Default::default(),
         })
     }
 
@@ -206,6 +207,7 @@ fn playlist_harness(mode: PlayMode) -> Harness {
         loop_from: None,
         playlist,
         practice_log: RecordStore::Memory,
+        view: Default::default(),
     })
 }
 
