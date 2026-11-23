@@ -43,7 +43,7 @@ pub use snapshot::SnapshotPlan;
 
 use crate::layout::{self, KeyRange};
 use crate::music::MidiNote;
-use crate::performance::{Judgement, Performance, PlayMode};
+use crate::performance::{Hands, Judgement, Performance, PlayMode};
 use crate::song::{NoteId, Song};
 use transport::{PlayState, Transport};
 
@@ -124,6 +124,7 @@ pub struct Options {
     pub logging: Logging,
     pub player: Player,
     pub records: RecordStore,
+    pub hands: Hands,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -178,7 +179,8 @@ fn default_plugins(backend: &Backend, logging: Logging, title: &str) -> PluginGr
 pub fn build(options: Options) -> App {
     let (low, high) = options.song.pitch_range();
     let keys = KeyRange::covering(low, high);
-    let performance = Performance::new(&options.song);
+    let mut performance = Performance::new(&options.song);
+    performance.set_hands(options.hands);
 
     let mut app = App::new();
     app.add_plugins(default_plugins(

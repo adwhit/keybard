@@ -7,7 +7,7 @@ use bevy::prelude::*;
 
 use super::input::{InputSource, KeyEdge, NoteInput};
 use super::transport::{PlayState, Transport};
-use super::{ActiveSong, Phase};
+use super::{ActiveSong, Judge, Phase};
 use crate::performance::PlayMode;
 use crate::song::{NoteId, Seconds};
 
@@ -15,7 +15,7 @@ use crate::song::{NoteId, Seconds};
 const MAX_JITTER: f32 = 0.07;
 
 #[derive(Resource, Debug, Default)]
-struct Hands {
+struct Fingers {
     down: HashSet<NoteId>,
     done: HashSet<NoteId>,
 }
@@ -28,14 +28,15 @@ pub fn jitter(id: NoteId) -> Seconds {
 }
 
 pub fn plugin(app: &mut App) {
-    app.init_resource::<Hands>()
+    app.init_resource::<Fingers>()
         .add_systems(Update, play.in_set(Phase::Input));
 }
 
 fn play(
-    mut hands: ResMut<Hands>,
+    mut fingers: ResMut<Fingers>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
+    judge: Res<Judge>,
     mut out: MessageWriter<NoteInput>,
 ) {
     if !transport.mode.is_scored() || transport.state != PlayState::Playing {
@@ -43,21 +44,21 @@ fn play(
     }
     let now = transport.time;
     // Forget everything when the clock goes back (restart / seek).
-    if hands
+    if fingers
         .done
         .iter()
         .any(|id| song.0.note(*id).start > now + Seconds(MAX_JITTER))
     {
-        *hands = Hands::default();
+        *fingers = Fingers::default();
     }
-    let releases: Vec<NoteId> = hands
+    let releases: Vec<NoteId> = fingers
         .down
         .iter()
         .copied()
         .filter(|id| song.0.note(*id).end() <= now)
         .collect();
     releases.iter().for_each(|id| {
-        hands.down.remove(id);
+        fingers.down.remove(id);
         out.write(NoteInput {
             note: song.0.note(*id).pitch,
             edge: KeyEdge::Up,
@@ -72,13 +73,13 @@ fn play(
             let due = n.start + jitter(*id);
             // In Wait mode the clock parks at the note, so don't wait for lateness.
             let ready = now >= due || (transport.mode == PlayMode::Wait && now >= n.start);
-            ready && !hands.done.contains(id) && n.end() > now
+            ready && !fingers.done.contains(id) && n.end() > now && judge.0.is_players(&song.0, *id)
         })
         .map(|(id, _)| id)
         .collect();
     presses.iter().for_each(|id| {
-        hands.done.insert(*id);
-        hands.down.insert(*id);
+        fingers.done.insert(*id);
+        fingers.down.insert(*id);
         out.write(NoteInput {
             note: song.0.note(*id).pitch,
             edge: KeyEdge::Down,

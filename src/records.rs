@@ -6,12 +6,13 @@ use std::path::Path;
 use tracing::{debug, warn};
 
 use crate::error::Error;
-use crate::performance::{PlayMode, Score};
+use crate::performance::{Hands, PlayMode, Score};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RecordKey {
     pub title: String,
     pub mode: PlayMode,
+    pub hands: Hands,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,6 +43,10 @@ fn mode_from_label(label: &str) -> Option<PlayMode> {
     PlayMode::ALL.into_iter().find(|m| m.label() == label)
 }
 
+fn hands_from_label(label: &str) -> Option<Hands> {
+    Hands::ALL.into_iter().find(|h| h.label() == label)
+}
+
 /// Titles may contain anything; keep the TSV one-record-per-line.
 fn escape(title: &str) -> String {
     title
@@ -69,14 +74,15 @@ fn unescape(field: &str) -> String {
 }
 
 fn parse_line(line: &str) -> Option<(RecordKey, Best)> {
-    let mut fields = line.splitn(5, '\t');
+    let mut fields = line.splitn(6, '\t');
     let mode = mode_from_label(fields.next()?)?;
+    let hands = hands_from_label(fields.next()?)?;
     let points = fields.next()?.parse().ok()?;
     let accuracy = fields.next()?.parse().ok()?;
     let max_combo = fields.next()?.parse().ok()?;
     let title = unescape(fields.next()?);
     Some((
-        RecordKey { title, mode },
+        RecordKey { title, mode, hands },
         Best {
             points,
             accuracy,
@@ -146,8 +152,9 @@ impl Records {
             .iter()
             .map(|(key, best)| {
                 format!(
-                    "{}\t{}\t{}\t{}\t{}\n",
+                    "{}\t{}\t{}\t{}\t{}\t{}\n",
                     key.mode.label(),
+                    key.hands.label(),
                     best.points,
                     best.accuracy,
                     best.max_combo,

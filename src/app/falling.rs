@@ -48,6 +48,8 @@ impl BarState {
 }
 
 const BAR_GAP: f32 = 2.0;
+/// Opacity of bars the computer plays for you.
+pub const GHOST_ALPHA: f32 = 0.3;
 const MIN_BAR_HEIGHT: f32 = 14.0;
 /// Labels need this much bar to sit inside.
 const MIN_LABELLED_HEIGHT: f32 = 18.0;
@@ -202,11 +204,19 @@ fn move_bars(
             }
             transform.translation.y = layout::fall_y(note.start - now);
             let state = BarState::of(judge.0.status(bar.0), note.is_sounding_at(now));
-            sprite.color = match state {
+            let color = match state {
                 BarState::Upcoming => palette::hand(note.hand),
                 BarState::Sounding => palette::hand_lit(note.hand),
                 BarState::Played => palette::hand_played(note.hand),
                 BarState::Missed => palette::MISSED.darker(0.25),
+            };
+            // The computer's part is a translucent ghost when you practise
+            // one hand, so your own notes stand out.
+            let yours = !transport.mode.is_scored() || judge.0.is_players(&song.0, bar.0);
+            sprite.color = if yours {
+                color
+            } else {
+                color.with_alpha(GHOST_ALPHA)
             };
         });
 }

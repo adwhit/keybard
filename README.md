@@ -41,6 +41,12 @@ single track the split is at middle C.
 - **Wait**: the clock stops at each note until you play it (all notes of a chord).
 - **Play**: the clock keeps running. Notes you miss by more than 0.2s count as missed.
 
+### Practising one hand
+
+`--hands right` (or `left`), or F2 in-app, makes you responsible for one hand
+only. The computer plays the other hand on time, never scores it, and draws its
+bars as translucent ghosts. Bests are kept separately per hand setting.
+
 ### Scoring (Wait and Play)
 
 Each hit is graded by timing: **Perfect** (within 50ms, 300 points),
@@ -67,6 +73,7 @@ that records every judgement as a coloured tick.
 | Up / Down or [ / ] | speed ±5% (25%-200%) |
 | Tab | cycle mode |
 | F1 | show / hide note names on bars |
+| F2 | practise both hands / right / left |
 | Backspace | restart |
 | Esc | quit |
 | Z S X D C V … | play the lower octave (C3 by default) |
@@ -124,7 +131,7 @@ Layout:
 Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, bar
 lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, hit effects, an autopilot, MIDI file and MIDI device input, and
+bests, one-hand practice, hit effects, an autopilot, MIDI file and MIDI device input, and
 sine-wave audio.
 
 Not yet done: key signatures and flats (all accidentals are written as

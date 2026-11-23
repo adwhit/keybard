@@ -1,10 +1,11 @@
-use keybard::performance::{PlayMode, Score};
+use keybard::performance::{Hands, PlayMode, Score};
 use keybard::records::{Best, RecordKey, Records, Submission};
 
 fn key(title: &str, mode: PlayMode) -> RecordKey {
     RecordKey {
         title: title.to_owned(),
         mode,
+        hands: Hands::Both,
     }
 }
 
@@ -96,7 +97,7 @@ fn missing_files_load_empty_and_bad_lines_are_skipped() {
     assert_eq!(missing, Records::default());
 
     let path = dir.path().join("best.tsv");
-    std::fs::write(&path, "garbage\nPlay\t100\t0.5\t3\tGood Song\n").unwrap();
+    std::fs::write(&path, "garbage\nPlay\tboth hands\t100\t0.5\t3\tGood Song\n").unwrap();
     let loaded = Records::load(&path).unwrap();
     assert_eq!(
         loaded

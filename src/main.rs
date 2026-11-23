@@ -7,8 +7,25 @@ use directories::ProjectDirs;
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
 use keybard::midi_file;
-use keybard::performance::PlayMode;
+use keybard::performance::{Hands, PlayMode};
 use keybard::song::Seconds;
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum HandsArg {
+    Both,
+    Right,
+    Left,
+}
+
+impl From<HandsArg> for Hands {
+    fn from(hands: HandsArg) -> Self {
+        match hands {
+            HandsArg::Both => Self::Both,
+            HandsArg::Right => Self::Right,
+            HandsArg::Left => Self::Left,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum Mode {
@@ -39,6 +56,9 @@ struct Cli {
     /// Starting play mode (Tab cycles in-app).
     #[arg(long, value_enum, default_value_t = Mode::Listen)]
     mode: Mode,
+    /// Which hands you play; the computer plays the rest (F2 cycles in-app).
+    #[arg(long, value_enum, default_value_t = HandsArg::Both)]
+    hands: HandsArg,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -108,6 +128,7 @@ fn main() -> ExitCode {
             Player::Human
         },
         records,
+        hands: cli.hands.into(),
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

@@ -69,6 +69,7 @@ fn record_finish(
         let key = RecordKey {
             title: song.0.title.clone(),
             mode: transport.mode,
+            hands: judge.0.hands(),
         };
         let submission = bests.records.submit(key, &score);
         info!(?submission, points = score.points, "song result");

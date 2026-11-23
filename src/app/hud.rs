@@ -41,7 +41,7 @@ struct Display {
     last_age: f32,
 }
 
-const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | Backspace restart | F1 note names | Esc quit\n\
+const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | Backspace restart | F1 note names | Esc quit\n\
 Play with Z S X D C V... and Q 2 W 3 E R... | -/= shift octave | or a MIDI keyboard";
 
 const STRIP_HEIGHT: f32 = 5.0;
@@ -157,6 +157,7 @@ fn update_info(
     mut text: Single<&mut Text, With<InfoText>>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
+    judge: Res<Judge>,
 ) {
     let state = match transport.state {
         PlayState::Playing => "",
@@ -167,9 +168,10 @@ fn update_info(
     let total = song.0.duration().0;
     let clock = |s: f32| format!("{}:{:02}", (s / 60.0) as u32, (s % 60.0) as u32);
     text.0 = format!(
-        "{title}\n{mode} mode | {speed:.0}% speed | {elapsed} / {total}{state}",
+        "{title}\n{mode} mode | {hands} | {speed:.0}% speed | {elapsed} / {total}{state}",
         title = song.0.title,
         mode = transport.mode.label(),
+        hands = judge.0.hands().label(),
         speed = transport.speed.get() * 100.0,
         elapsed = clock(elapsed),
         total = clock(total),

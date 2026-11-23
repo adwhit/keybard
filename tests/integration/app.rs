@@ -22,7 +22,7 @@ use keybard::app::{
 };
 use keybard::layout;
 use keybard::music::MidiNote;
-use keybard::performance::{NoteStatus, PlayMode, Score, Timing};
+use keybard::performance::{Hands, NoteStatus, PlayMode, Score, Timing};
 use keybard::records::{RecordKey, Records, Submission};
 use keybard::song::{Hand, NoteId, Seconds, Song, Tempo, parse_voice};
 
@@ -46,6 +46,7 @@ impl Harness {
             logging: Logging::Disabled,
             player,
             records,
+            hands: Hands::Both,
         });
         app.insert_resource(TimeUpdateStrategy::ManualDuration(FRAME));
         app.finish();
@@ -459,6 +460,7 @@ fn personal_bests_are_saved_to_disk() {
         .best(&RecordKey {
             title: "test".to_owned(),
             mode: PlayMode::Wait,
+            hands: Hands::Both,
         })
         .expect("best recorded");
     assert_eq!(best.points, h.score().points);
@@ -521,4 +523,34 @@ fn snapshots_past_the_end_are_taken_when_the_song_finishes() {
     assert!(!SnapshotPlan::is_due(Seconds(40.0), Seconds(39.9), false));
     assert!(SnapshotPlan::is_due(Seconds(40.0), Seconds(39.9), true));
     assert!(SnapshotPlan::is_due(Seconds(5.0), Seconds(5.0), false));
+}
+
+#[test]
+fn practising_one_hand_ghosts_and_autoplays_the_other() {
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    h.tap(KeyCode::F2);
+    assert_eq!(h.world().resource::<Judge>().0.hands(), Hands::Right);
+
+    h.run_until(-1.0);
+    let alpha = |h: &mut Harness, id: usize| {
+        let mut q = h.world().query::<(&FallingBar, &Sprite)>();
+        q.iter(h.app.world())
+            .find(|(b, _)| b.0 == NoteId(id))
+            .map(|(_, s)| s.color.alpha())
+            .unwrap()
+    };
+    assert!(alpha(&mut h, C3) < 0.5, "left hand is a ghost");
+    assert_eq!(alpha(&mut h, C4), 1.0, "right hand is yours");
+
+    h.run_until(4.4);
+    h.frames(30);
+    let score = h.score();
+    assert_eq!(score.hits(), 3, "the autopilot only plays the right hand");
+    assert_eq!((score.missed, score.wrong), (0, 0));
+    assert_eq!(h.status(C3), NoteStatus::AutoPlayed);
 }

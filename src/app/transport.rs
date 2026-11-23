@@ -131,6 +131,12 @@ fn controls(
         judge.0.seek(song, transport.time);
         info!(mode = transport.mode.label(), "changed play mode");
     }
+    if keys.just_pressed(KeyCode::F2) {
+        let hands = judge.0.hands().next();
+        judge.0.set_hands(hands);
+        judge.0.seek(song, transport.time);
+        info!(hands = hands.label(), "changed practised hands");
+    }
 }
 
 pub(super) fn advance(

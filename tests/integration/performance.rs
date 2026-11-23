@@ -1,6 +1,6 @@
 use keybard::music::MidiNote;
 use keybard::performance::{
-    Grade, HIT_WINDOW, NoteStatus, Performance, PlayMode, PressOutcome, Score, Timing,
+    Grade, HIT_WINDOW, Hands, NoteStatus, Performance, PlayMode, PressOutcome, Score, Timing,
 };
 use keybard::song::{Hand, NoteId, Seconds, Song, Tempo, parse_voice};
 
@@ -221,4 +221,63 @@ fn modes_cycle() {
     assert_eq!(PlayMode::Listen.next(), PlayMode::Wait);
     assert_eq!(PlayMode::Wait.next(), PlayMode::Play);
     assert_eq!(PlayMode::Play.next(), PlayMode::Listen);
+}
+
+/// Right hand C4 E4 at 0s and 1s; left hand C3 at 0s and G2 at 1s.
+fn two_hands() -> Song {
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let notes = parse_voice("C4 E4", Hand::Right, tempo)
+        .unwrap()
+        .into_iter()
+        .chain(parse_voice("C3 G2", Hand::Left, tempo).unwrap())
+        .collect();
+    Song::new("hands", tempo, notes).unwrap()
+}
+
+#[test]
+fn hands_cycle_and_include() {
+    assert!(Hands::Both.includes(Hand::Left) && Hands::Both.includes(Hand::Right));
+    assert!(Hands::Right.includes(Hand::Right) && !Hands::Right.includes(Hand::Left));
+    assert_eq!(Hands::Both.next(), Hands::Right);
+    assert_eq!(Hands::Right.next(), Hands::Left);
+    assert_eq!(Hands::Left.next(), Hands::Both);
+}
+
+#[test]
+fn the_other_hand_plays_itself_in_wait_mode() {
+    let song = two_hands();
+    let mut perf = Performance::new(&song);
+    perf.set_hands(Hands::Right);
+    let a = perf.advance(&song, PlayMode::Wait, Seconds(-1.0), Seconds(0.5));
+    assert_eq!(a.time, Seconds(0.0), "still waits for the right hand");
+    let c3 = song.iter().find(|(_, note)| note.pitch == n(48)).unwrap().0;
+    assert_eq!(a.auto_played, vec![c3], "left hand sounded by the computer");
+    assert_eq!(perf.status(c3), NoteStatus::AutoPlayed);
+
+    // Pressing the left-hand note is not a hit: it isn't yours.
+    assert_eq!(perf.press(&song, n(48), Seconds(0.0)), PressOutcome::Wrong);
+    hit(perf.press(&song, n(60), Seconds(0.0)));
+    let b = perf.advance(&song, PlayMode::Wait, Seconds(0.0), Seconds(0.7));
+    assert_eq!(b.time, Seconds(0.7), "left hand never gates");
+}
+
+#[test]
+fn the_other_hand_is_never_missed_in_play_mode() {
+    let song = two_hands();
+    let mut perf = Performance::new(&song);
+    perf.set_hands(Hands::Left);
+    let a = perf.advance(&song, PlayMode::Play, Seconds(-1.0), Seconds(3.0));
+    let score = perf.score();
+    assert_eq!(score.missed, 2, "only the two left-hand notes count");
+    assert_eq!(a.auto_played.len(), 2, "right hand auto-played");
+    assert_eq!(a.missed.len(), 2);
+}
+
+#[test]
+fn listen_mode_plays_everything_whatever_the_hands() {
+    let song = two_hands();
+    let mut perf = Performance::new(&song);
+    perf.set_hands(Hands::Left);
+    let a = perf.advance(&song, PlayMode::Listen, Seconds(-1.0), Seconds(3.0));
+    assert_eq!(a.auto_played.len(), 4);
 }
