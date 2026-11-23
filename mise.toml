@@ -1,0 +1,3 @@
+# Rust uses the system-wide toolchain; only pin auxiliary tools here.
+[tools]
+just = "latest"
