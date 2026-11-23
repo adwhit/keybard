@@ -152,3 +152,55 @@ fn count_in_follows_the_time_signature() {
         .collect();
     assert_eq!(beats, vec![3, 2, 1]);
 }
+
+#[test]
+fn every_builtin_song_is_whole_bars_with_both_hands_ending_together() {
+    use clap::ValueEnum;
+    BuiltinSong::value_variants().iter().for_each(|b| {
+        let song = b.load().unwrap_or_else(|e| panic!("{b:?}: {e}"));
+        let end_of = |hand: Hand| {
+            song.notes()
+                .iter()
+                .filter(|n| n.hand == hand)
+                .map(|n| n.end().0)
+                .fold(0.0, f32::max)
+        };
+        let (right, left) = (end_of(Hand::Right), end_of(Hand::Left));
+        assert!(
+            (right - left).abs() < 1e-3,
+            "{b:?}: right ends {right}, left {left}"
+        );
+        let bars = song.duration().0 / song.tempo.bar_length().0;
+        assert!((bars - bars.round()).abs() < 1e-3, "{b:?}: {bars} bars");
+        assert!(song.notes().len() >= 20, "{b:?} is too short to be fun");
+    });
+}
+
+#[test]
+fn new_builtins_are_available() {
+    let fur_elise = BuiltinSong::FurElise.load().unwrap();
+    assert_eq!(fur_elise.tempo.beats_per_bar, 3);
+    assert!(
+        fur_elise
+            .notes()
+            .iter()
+            .any(|n| n.pitch.to_string() == "D#5"),
+        "the famous E-D# trill"
+    );
+    let minuet = BuiltinSong::Minuet.load().unwrap();
+    assert_eq!(minuet.tempo.beats_per_bar, 3);
+    let jingle = BuiltinSong::JingleBells.load().unwrap();
+    assert_eq!(jingle.tempo.beats_per_bar, 4);
+}
+
+#[test]
+fn builtin_titles_are_plain_ascii_for_the_default_font() {
+    use clap::ValueEnum;
+    BuiltinSong::value_variants().iter().for_each(|b| {
+        let title = b.load().unwrap().title;
+        assert!(
+            title.is_ascii(),
+            "{title} has glyphs the bundled font lacks"
+        );
+    });
+}

@@ -32,7 +32,8 @@ just snapshot                      # render PNGs offscreen into target/snapshots
 just listen twinkle                # render the song to target/twinkle.wav
 ```
 
-Built-in songs: `ode-to-joy`, `twinkle`, `scale`. Any Standard MIDI File
+Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
+`minuet` (Minuet in G, simplified) and `jingle-bells` (the chorus). Any Standard MIDI File
 works too: with two or more note tracks the first is the right hand, and with a
 single track the split is at middle C.
 
