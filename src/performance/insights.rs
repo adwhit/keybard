@@ -1,5 +1,6 @@
 //! Coaching insights for the results card: per-hand accuracy, timing
-//! tendency and the notes missed most.
+//! tendency, the notes missed most and, with a touch-sensitive keyboard,
+//! how well loudness follows the dynamics.
 
 use crate::music::MidiNote;
 use crate::song::Seconds;
@@ -16,6 +17,25 @@ pub enum Tendency {
     Late,
 }
 
+/// Which way played loudness strays from the marked dynamics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Loudness {
+    Softer,
+    AsMarked,
+    Louder,
+}
+
+/// How closely touch-sensitive hits followed the marked dynamics.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Expression {
+    /// Fraction of hits within one dynamic level of the marking.
+    pub as_marked: f32,
+    pub lean: Loudness,
+}
+
+/// Average levels (pp..ff steps) beyond this count as a lean.
+pub const LOUDNESS_LEAN: f32 = 0.5;
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Insights {
     pub right_accuracy: Option<f32>,
@@ -24,6 +44,8 @@ pub struct Insights {
     pub mean_offset: Option<Seconds>,
     /// Pitches missed most often, worst first, with their miss counts.
     pub most_missed: Vec<(MidiNote, usize)>,
+    /// Only when hits came with velocity (a MIDI keyboard).
+    pub dynamics: Option<Expression>,
 }
 
 impl Insights {
@@ -53,10 +75,23 @@ impl Insights {
                 .join(", ");
             format!("Most missed: {list}")
         });
-        [(!hands.is_empty()).then_some(hands), timing, missed]
-            .into_iter()
-            .flatten()
-            .collect()
+        let dynamics = self.dynamics.map(|e| {
+            let marked = format!("Dynamics {} as marked", percent(e.as_marked));
+            match e.lean {
+                Loudness::AsMarked => marked,
+                Loudness::Louder => format!("{marked}: mostly too loud"),
+                Loudness::Softer => format!("{marked}: mostly too soft"),
+            }
+        });
+        [
+            (!hands.is_empty()).then_some(hands),
+            timing,
+            missed,
+            dynamics,
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 
     pub fn tendency(&self) -> Tendency {

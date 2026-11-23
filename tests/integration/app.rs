@@ -107,11 +107,15 @@ impl Harness {
     }
 
     fn midi(&mut self, note: u8, edge: KeyEdge) {
+        self.midi_at(note, edge, keybard::dynamics::Velocity::DEFAULT);
+    }
+
+    fn midi_at(&mut self, note: u8, edge: KeyEdge, velocity: keybard::dynamics::Velocity) {
         self.world().write_message(NoteInput {
             note: n(note),
             edge,
             source: InputSource::Midi,
-            velocity: keybard::dynamics::Velocity::DEFAULT,
+            velocity,
         });
         self.app.update();
     }

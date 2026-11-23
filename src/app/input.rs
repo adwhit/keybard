@@ -226,6 +226,10 @@ fn judge_presses(
             if judging {
                 let outcome = judge.0.press(&song.0, input.note, transport.time);
                 debug!(note = %input.note, source = ?input.source, ?outcome, "judged press");
+                // Only a MIDI keyboard knows how hard the key went down.
+                if let (PressOutcome::Hit(judgement), InputSource::Midi) = (outcome, input.source) {
+                    judge.0.touch(judgement.note, input.velocity);
+                }
                 feedback.write(match outcome {
                     PressOutcome::Hit(judgement) => Feedback::Hit(judgement),
                     PressOutcome::Wrong => Feedback::Wrong {

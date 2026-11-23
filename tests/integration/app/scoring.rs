@@ -71,6 +71,30 @@ fn play_mode_counts_misses_and_wrong_notes() {
 }
 
 #[test]
+fn midi_touch_is_judged_against_the_dynamics() {
+    use keybard::dynamics::Velocity;
+    use keybard::performance::Loudness;
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.02);
+    // The test song is unmarked (mf); slam the first note.
+    h.midi_at(60, KeyEdge::Down, Velocity::new(127));
+    let dynamics = h.world().resource::<Judge>().0.insights(&song()).dynamics;
+    let dynamics = dynamics.expect("MIDI velocity reaches the judge");
+    assert_eq!(dynamics.lean, Loudness::Louder);
+}
+
+#[test]
+fn computer_keys_have_no_touch_to_judge() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.02);
+    h.tap(KeyCode::Equal);
+    h.key(KeyCode::KeyZ, ButtonState::Pressed);
+    let insights = h.world().resource::<Judge>().0.insights(&song());
+    assert_eq!(insights.right_accuracy, Some(1.0), "the key hit C4");
+    assert_eq!(insights.dynamics, None);
+}
+
+#[test]
 fn hits_spawn_particles_popups_and_progress_ticks() {
     let mut h = Harness::new(song(), PlayMode::Play);
     h.run_until(-0.01);

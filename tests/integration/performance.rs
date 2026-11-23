@@ -378,6 +378,7 @@ fn insight_summaries_read_like_coaching() {
         left_accuracy: Some(0.714),
         mean_offset: Some(Seconds(-0.034)),
         most_missed: vec![(n(66), 3), (n(48), 2)],
+        dynamics: None,
     };
     assert_eq!(
         insights.summary(),
@@ -459,4 +460,74 @@ fn perfect_bars_need_every_note_perfect() {
         !perf.bar_is_perfect(&song, 7),
         "bars without notes never count"
     );
+}
+
+mod expression {
+    use keybard::dynamics::Velocity;
+    use keybard::performance::{Expression, Insights, Loudness, Performance};
+    use keybard::song::Seconds;
+
+    use super::{hit, n, song_from};
+
+    #[test]
+    fn needs_touch_sensitive_hits() {
+        let song = song_from("!p C4 E4 G4");
+        let mut perf = Performance::new(&song);
+        hit(perf.press(&song, n(60), Seconds(0.0)));
+        assert_eq!(perf.insights(&song).dynamics, None);
+    }
+
+    #[test]
+    fn compares_played_loudness_with_the_marking() {
+        // Marked piano throughout; played forte, forte, then piano.
+        let song = song_from("!p C4 E4 G4 C5");
+        let mut perf = Performance::new(&song);
+        [(60, 0.0, 100), (64, 1.0, 104), (67, 2.0, 45)]
+            .into_iter()
+            .for_each(|(pitch, at, velocity)| {
+                let (id, _) = hit(perf.press(&song, n(pitch), Seconds(at)));
+                perf.touch(id, Velocity::new(velocity));
+            });
+        let dynamics = perf.insights(&song).dynamics.expect("touch recorded");
+        assert!((dynamics.as_marked - 1.0 / 3.0).abs() < 1e-6);
+        assert_eq!(dynamics.lean, Loudness::Louder);
+    }
+
+    #[test]
+    fn one_level_either_side_counts_as_marked() {
+        let song = song_from("!mf C4 E4");
+        let mut perf = Performance::new(&song);
+        [(60, 0.0, 64), (64, 1.0, 100)]
+            .into_iter()
+            .for_each(|(pitch, at, velocity)| {
+                let (id, _) = hit(perf.press(&song, n(pitch), Seconds(at)));
+                perf.touch(id, Velocity::new(velocity));
+            });
+        let dynamics = perf.insights(&song).dynamics.unwrap();
+        assert_eq!(dynamics.as_marked, 1.0);
+        assert_eq!(dynamics.lean, Loudness::AsMarked);
+    }
+
+    #[test]
+    fn summaries_say_which_way_to_go() {
+        let line = |as_marked: f32, lean: Loudness| {
+            Insights {
+                dynamics: Some(Expression { as_marked, lean }),
+                ..Insights::default()
+            }
+            .summary()
+        };
+        assert_eq!(
+            line(0.95, Loudness::AsMarked),
+            vec!["Dynamics 95% as marked".to_owned()]
+        );
+        assert_eq!(
+            line(0.4, Loudness::Louder),
+            vec!["Dynamics 40% as marked: mostly too loud".to_owned()]
+        );
+        assert_eq!(
+            line(0.25, Loudness::Softer),
+            vec!["Dynamics 25% as marked: mostly too soft".to_owned()]
+        );
+    }
 }

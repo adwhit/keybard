@@ -4,9 +4,10 @@
 mod insights;
 mod score;
 
-pub use insights::{Insights, MOST_MISSED, Tendency};
+pub use insights::{Expression, Insights, LOUDNESS_LEAN, Loudness, MOST_MISSED, Tendency};
 pub use score::{Grade, HIT_WINDOW, Heat, Score, Timing};
 
+use crate::dynamics::{Dynamic, Velocity};
 use crate::music::MidiNote;
 use crate::song::{Hand, NoteId, Seconds, Song};
 
@@ -136,6 +137,8 @@ pub struct Performance {
     hands: Hands,
     /// Timing of each hit note (negative = early), for insights.
     offsets: Vec<Seconds>,
+    /// How hard each hit note was played, when the keyboard can tell.
+    touches: Vec<Option<Velocity>>,
 }
 
 impl Performance {
@@ -146,6 +149,7 @@ impl Performance {
             stall: Seconds(0.0),
             hands: Hands::Both,
             offsets: vec![Seconds(0.0); song.notes().len()],
+            touches: vec![None; song.notes().len()],
         }
     }
 
@@ -174,6 +178,9 @@ impl Performance {
     /// Prepare to play from `time`: everything from there on is pending again,
     /// anything earlier that was never played is skipped.
     pub fn seek(&mut self, song: &Song, time: Seconds) {
+        song.iter()
+            .filter(|(_, note)| note.start >= time)
+            .for_each(|(id, _)| self.touches[id.0] = None);
         song.iter().for_each(|(id, note)| {
             let status = &mut self.statuses[id.0];
             *status = match *status {
@@ -348,7 +355,41 @@ impl Performance {
             left_accuracy: judged(Hand::Left),
             mean_offset,
             most_missed: misses,
+            dynamics: self.expression(song),
         }
+    }
+
+    /// Record how hard a hit note was played (touch-sensitive input only).
+    pub fn touch(&mut self, id: NoteId, velocity: Velocity) {
+        self.touches[id.0] = Some(velocity);
+    }
+
+    /// How the touch of hit notes compares with their marked dynamics.
+    fn expression(&self, song: &Song) -> Option<Expression> {
+        let level = |v: Velocity| {
+            Dynamic::ALL
+                .iter()
+                .position(|d| *d == Dynamic::from_velocity(v))
+                .unwrap_or(0) as i32
+        };
+        let steps: Vec<i32> = song
+            .iter()
+            .filter(|(id, _)| matches!(self.statuses[id.0], NoteStatus::Hit(_)))
+            .filter_map(|(id, n)| self.touches[id.0].map(|v| level(v) - level(n.velocity)))
+            .collect();
+        (!steps.is_empty()).then(|| {
+            let count = steps.len() as f32;
+            let as_marked = steps.iter().filter(|s| s.abs() <= 1).count() as f32 / count;
+            let mean = steps.iter().sum::<i32>() as f32 / count;
+            Expression {
+                as_marked,
+                lean: match mean {
+                    m if m > LOUDNESS_LEAN => Loudness::Louder,
+                    m if m < -LOUDNESS_LEAN => Loudness::Softer,
+                    _ => Loudness::AsMarked,
+                },
+            }
+        })
     }
 
     /// The player's pending note due near `time` whose pitch is closest to
