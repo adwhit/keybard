@@ -133,7 +133,7 @@ Practice habit: time spent playing (wall-clock, so slowed practice counts in
 full) is logged per day next to your bests (`practice.tsv`). At least a minute
 on a day extends your day streak. The HUD and results card show the streak and
 today's minutes, and crossing the day's minute announces "3-DAY STREAK!".
-Days are UTC.
+Days follow your local clock.
 
 Feedback while playing: particle bursts and key flashes on hits, floating
 PERFECT/GREAT/GOOD/MISS text, a combo counter that brightens as the multiplier

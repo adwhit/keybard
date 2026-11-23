@@ -53,3 +53,20 @@ fn round_trips_through_a_file() {
     l.save(&path).unwrap();
     assert_eq!(PracticeLog::load(&path).unwrap(), l);
 }
+
+#[test]
+fn days_follow_the_local_clock() {
+    // 2026-11-23 23:30 in UTC-8 is 07:30 the next morning in UTC.
+    let utc = 1_795_995_000_u64; // some instant
+    let utc_day = Day::from_unix_seconds(utc);
+    let behind = Day::local(utc, -8 * 3600);
+    let ahead = Day::local(utc, 9 * 3600);
+    assert!(behind.0 <= utc_day.0 && utc_day.0 <= ahead.0);
+    // Exactly: an evening in California is still "yesterday" in UTC terms.
+    let eleven_pm_pacific = 1_796_025_600 - 3600; // 07:00Z next day = 23:00 PST
+    assert_eq!(
+        Day::local(eleven_pm_pacific, -8 * 3600),
+        Day(Day::from_unix_seconds(eleven_pm_pacific).0 - 1)
+    );
+    assert_eq!(Day::local(utc, 0), utc_day);
+}

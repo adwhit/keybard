@@ -9,7 +9,7 @@ use tracing::warn;
 use crate::error::Error;
 use crate::song::Seconds;
 
-/// A calendar day (UTC), counted from the Unix epoch.
+/// A local calendar day, counted from the Unix epoch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Day(pub u32);
 
@@ -20,11 +20,20 @@ impl Day {
         Self(u32::try_from(seconds / SECONDS_PER_DAY).unwrap_or(u32::MAX))
     }
 
+    /// The local calendar day of a Unix instant, given the local offset
+    /// from UTC in seconds (negative west of Greenwich).
+    pub fn local(unix_seconds: u64, utc_offset_seconds: i32) -> Self {
+        let local = unix_seconds.saturating_add_signed(i64::from(utc_offset_seconds));
+        Self::from_unix_seconds(local)
+    }
+
+    /// Today, by the local clock.
     pub fn today() -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        Self::from_unix_seconds(now)
+        let offset = chrono::Local::now().offset().local_minus_utc();
+        Self::local(now, offset)
     }
 
     fn previous(self) -> Option<Self> {
