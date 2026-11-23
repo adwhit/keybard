@@ -4,15 +4,18 @@
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::effects::popup;
 use super::falling::View;
 use super::input::MidiStatus;
 use super::practice::Practice;
+use super::results::Bests;
 use super::section::SectionLoop;
 use super::songs::SongScoped;
 use super::transport::{Metronome, PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, Phase, palette};
 use crate::layout;
 use crate::performance::{Judgement, Timing};
+use crate::records::{self, Best, Chase, RecordKey};
 
 #[derive(Component)]
 struct InfoText;
@@ -63,6 +66,7 @@ pub fn plugin(app: &mut App) {
             (
                 update_info,
                 update_score,
+                best_beaten,
                 update_combo,
                 update_timing,
                 update_strip,
@@ -222,12 +226,28 @@ fn update_info(
     }
 }
 
+/// The best for what's being played now, if any.
+fn current_best(
+    bests: &Bests,
+    song: &ActiveSong,
+    judge: &Judge,
+    transport: &Transport,
+) -> Option<Best> {
+    bests.records.best(&RecordKey {
+        title: song.0.title.clone(),
+        mode: transport.mode,
+        hands: judge.0.hands(),
+    })
+}
+
 fn update_score(
     mut text: Single<&mut Text, With<ScoreText>>,
     mut display: ResMut<Display>,
     judge: Res<Judge>,
     transport: Res<Transport>,
     time: Res<Time>,
+    bests: Res<Bests>,
+    song: Res<ActiveSong>,
 ) {
     if !transport.mode.is_scored() {
         text.0.clear();
@@ -250,6 +270,42 @@ fn update_score(
         points = display.points.round() as u32,
         mult = score.multiplier(),
     );
+    let best = current_best(&bests, &song, &judge, &transport);
+    if let Some(line) = records::chase(score.points, best).label() {
+        text.0.push('\n');
+        text.0.push_str(&line);
+    }
+}
+
+/// One big pop the moment a run overtakes the personal best.
+fn best_beaten(
+    mut commands: Commands,
+    judge: Res<Judge>,
+    transport: Res<Transport>,
+    bests: Res<Bests>,
+    song: Res<ActiveSong>,
+    mut was_ahead: Local<bool>,
+) {
+    let best = current_best(&bests, &song, &judge, &transport);
+    let points = judge.0.score().points;
+    let ahead = transport.mode.is_scored()
+        && transport.state == PlayState::Playing
+        && matches!(records::chase(points, best), Chase::Ahead { .. });
+    // A restart drops back behind and re-arms the pop.
+    let behind = !matches!(records::chase(points, best), Chase::Ahead { .. });
+    if ahead && !*was_ahead {
+        popup(
+            &mut commands,
+            "BEST BEATEN!",
+            palette::timing(Timing::Perfect),
+            Vec2::new(0.0, 60.0),
+            34.0,
+            1.0,
+        );
+        *was_ahead = true;
+    } else if behind {
+        *was_ahead = false;
+    }
 }
 
 fn update_combo(

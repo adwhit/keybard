@@ -187,6 +187,68 @@ fn autopilot_plays_a_whole_song_and_earns_a_result() {
     assert_eq!(h.score(), Score::default());
 }
 
+fn ui_texts(h: &mut Harness) -> Vec<String> {
+    let mut q = h.world().query::<&Text>();
+    q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+}
+
+#[test]
+fn the_hud_chases_your_personal_best_live() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bests.tsv");
+    // A best of 400 points in Play mode, both hands.
+    std::fs::write(
+        &path,
+        format!(
+            "{}\t{}\t400\t0.5\t1\ttest\n",
+            PlayMode::Play.label(),
+            Hands::Both.label()
+        ),
+    )
+    .unwrap();
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Human,
+        RecordStore::File(path),
+    );
+    h.run_until(-0.5);
+    assert!(
+        ui_texts(&mut h)
+            .iter()
+            .any(|t| t.contains("best 400 | 400 to go")),
+        "{:?}",
+        ui_texts(&mut h)
+    );
+    h.run_until(-0.01);
+    h.midi(60, KeyEdge::Down);
+    h.frames(2);
+    assert!(ui_texts(&mut h).iter().any(|t| t.contains("100 to go")));
+    assert!(!h.texts().contains(&"BEST BEATEN!".to_owned()));
+    h.run_until(0.99);
+    h.midi(64, KeyEdge::Down);
+    h.frames(2);
+    assert!(
+        h.texts().contains(&"BEST BEATEN!".to_owned()),
+        "{:?}",
+        h.texts()
+    );
+    assert!(
+        ui_texts(&mut h)
+            .iter()
+            .any(|t| t.contains("best beaten by"))
+    );
+    // Only once per run.
+    h.run_until(1.99);
+    h.midi(67, KeyEdge::Down);
+    h.frames(2);
+    // The first pop (at 1s) has faded; passing further doesn't pop again.
+    assert!(
+        !h.texts().contains(&"BEST BEATEN!".to_owned()),
+        "no second pop"
+    );
+}
+
 #[test]
 fn personal_bests_are_saved_to_disk() {
     let dir = tempfile::tempdir().unwrap();

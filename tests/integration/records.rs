@@ -107,3 +107,39 @@ fn missing_files_load_empty_and_bad_lines_are_skipped() {
         100
     );
 }
+
+#[test]
+fn chasing_a_best_counts_down_then_celebrates() {
+    use keybard::records::{Chase, chase};
+    let best = Best {
+        points: 1000,
+        accuracy: 0.9,
+        max_combo: 10,
+    };
+    assert_eq!(chase(0, None), Chase::NoBest);
+    assert_eq!(
+        chase(300, Some(best)),
+        Chase::Behind {
+            best: 1000,
+            to_go: 700
+        }
+    );
+    // Equalling it isn't beating it.
+    assert_eq!(
+        chase(1000, Some(best)),
+        Chase::Behind {
+            best: 1000,
+            to_go: 0
+        }
+    );
+    assert_eq!(chase(1200, Some(best)), Chase::Ahead { by: 200 });
+    assert_eq!(
+        chase(300, Some(best)).label(),
+        Some("best 1000 | 700 to go".to_owned())
+    );
+    assert_eq!(
+        chase(1200, Some(best)).label(),
+        Some("best beaten by 200!".to_owned())
+    );
+    assert_eq!(chase(5, None).label(), None);
+}

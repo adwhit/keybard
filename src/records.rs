@@ -91,6 +91,45 @@ fn parse_line(line: &str) -> Option<(RecordKey, Best)> {
     ))
 }
 
+/// Where a run in progress stands against the personal best.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Chase {
+    NoBest,
+    /// Points still needed to beat the best (0 when level with it).
+    Behind {
+        best: u32,
+        to_go: u32,
+    },
+    Ahead {
+        by: u32,
+    },
+}
+
+impl Chase {
+    /// A short HUD line, if there's a best to chase.
+    pub fn label(self) -> Option<String> {
+        match self {
+            Self::NoBest => None,
+            Self::Behind { best, to_go } => Some(format!("best {best} | {to_go} to go")),
+            Self::Ahead { by } => Some(format!("best beaten by {by}!")),
+        }
+    }
+}
+
+/// Compare live points with the best so far.
+pub fn chase(points: u32, best: Option<Best>) -> Chase {
+    match best {
+        None => Chase::NoBest,
+        Some(best) if points > best.points => Chase::Ahead {
+            by: points - best.points,
+        },
+        Some(best) => Chase::Behind {
+            best: best.points,
+            to_go: best.points - points,
+        },
+    }
+}
+
 /// Where bests live by default: the platform's user data directory.
 pub fn default_path() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "keybard").map(|dirs| dirs.data_dir().join("bests.tsv"))

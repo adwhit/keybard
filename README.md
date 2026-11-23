@@ -147,6 +147,9 @@ Each hit is graded by timing: **Perfect** (within 50ms, 300 points),
 time spent waiting counts as lateness. Every 10 hits in a row raise the
 multiplier, up to x4. A miss or a wrong note resets it.
 
+While you play, the score shows the best to chase ("best 5000 | 2800 to go"),
+and "BEST BEATEN!" pops the moment you pass it.
+
 At the end you get a grade (S/A/B/C/D, by accuracy), your points, max combo and
 a breakdown, compared against your personal best for that song and mode. A
 strip of cells shows each bar's accuracy from red to green, and the card names
