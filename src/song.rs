@@ -63,6 +63,9 @@ impl Note {
 pub struct Tempo {
     pub seconds_per_beat: Seconds,
     pub beats_per_bar: u8,
+    /// How many beats short notes are beamed across (one beat for simple
+    /// meters; a whole bar in e.g. 3/8).
+    pub beam_group: Beats,
 }
 
 impl Tempo {
@@ -70,7 +73,12 @@ impl Tempo {
         Self {
             seconds_per_beat: Seconds(60.0 / bpm),
             beats_per_bar,
+            beam_group: Beats(1.0),
         }
+    }
+
+    pub fn with_beam_group(self, beam_group: Beats) -> Self {
+        Self { beam_group, ..self }
     }
 
     pub fn to_seconds(self, beats: Beats) -> Seconds {

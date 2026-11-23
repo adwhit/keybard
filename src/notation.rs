@@ -129,6 +129,7 @@ pub fn beams(song: &Song, hand: Hand) -> Vec<Vec<crate::song::NoteId>> {
             }
         });
     let short = |e: &(f32, f32, Vec<crate::song::NoteId>)| e.1 - e.0 < BEAMABLE;
+    let group = tempo.beam_group.0.max(EPSILON);
 
     let mut groups: Vec<Vec<&(f32, f32, Vec<crate::song::NoteId>)>> = Vec::new();
     events.iter().for_each(|event| {
@@ -136,7 +137,7 @@ pub fn beams(song: &Song, hand: Hand) -> Vec<Vec<crate::song::NoteId>> {
             short(prev)
                 && short(event)
                 && (prev.1 - event.0).abs() < EPSILON
-                && (prev.0 + EPSILON).floor() == (event.0 + EPSILON).floor()
+                && ((prev.0 + EPSILON) / group).floor() == ((event.0 + EPSILON) / group).floor()
         });
         if joins {
             if let Some(group) = groups.last_mut() {

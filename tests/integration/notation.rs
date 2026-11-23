@@ -117,11 +117,27 @@ fn chords_are_beamed_as_one_event() {
 }
 
 #[test]
-fn fur_elise_opening_bar_beams_in_pairs() {
+fn fur_elise_beams_whole_bars_like_the_printed_score() {
     let s = BuiltinSong::FurElise.load().unwrap();
     let right = beam_summary(&s, Hand::Right);
     assert_eq!(right[0], vec!["E5", "D#5"], "the pickup");
-    assert_eq!(right[1], vec!["E5", "D#5"]);
-    assert_eq!(right[2], vec!["E5", "B4"]);
-    assert_eq!(right[3], vec!["D5", "C5"]);
+    assert_eq!(
+        right[1],
+        vec!["E5", "D#5", "E5", "B4", "D5", "C5"],
+        "one group per 3/8 bar"
+    );
+    let left = beam_summary(&s, Hand::Left);
+    assert_eq!(left[0], vec!["A2", "E3", "A3"], "the arpeggio is one group");
+}
+
+#[test]
+fn beam_groups_can_span_several_beats() {
+    use keybard::song::Beats;
+    let tempo = Tempo::from_bpm(60.0, 4).with_beam_group(Beats(2.0));
+    let notes = parse_voice("C4/0.5 D4/0.5 E4/0.5 F4/0.5 G4/2", Hand::Right, tempo).unwrap();
+    let s = Song::new("t", tempo, notes).unwrap();
+    assert_eq!(
+        beam_summary(&s, Hand::Right),
+        vec![vec!["C4", "D4", "E4", "F4"]]
+    );
 }

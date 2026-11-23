@@ -233,8 +233,8 @@ Layout:
 ## Status
 
 Working: grand-staff notation (clefs, inferred key signatures with sharps or
-flats, accidentals only where needed, ledger lines, stems, flags, beams by
-beat, rests, chord symbols,
+flats, accidentals only where needed, ledger lines, stems, flags, beams grouped
+by the meter, rests, chord symbols,
 bar lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
 bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
