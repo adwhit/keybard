@@ -74,6 +74,21 @@ misses or wrong notes) raises the speed 5% ("SPEED 75%"), up to full tempo,
 and a messy pass holds it. Drilling your weakest bars from the results card
 starts at 70%.
 
+### Fingering
+
+Every note gets a recommended finger (1 = thumb ... 5 = pinky), computed for
+the tune by `src/fingering.rs`. It runs a dynamic programme over each hand's
+notes and chords, using a simple ergonomics model: one finger per white key,
+thumb-under and finger-over-thumb crossings at a cost (cheapest with the
+middle finger), no other crossings, the same finger on a repeated note, and
+thumbs and pinkies kept off black keys. It reproduces textbook fingerings
+such as the C major scale (1 2 3 1 2 3 4 5), Ode to Joy in C position and
+the Minuet in G opening, and it works on any MIDI file.
+
+The finger shows as a bold digit on each bar (F1 cycles labels: fingers and
+names, fingers, names, off), beside each notehead in the notation, and as a
+large digit on a key while its note is about to land or is sounding.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand
@@ -113,7 +128,7 @@ that records every judgement as a coloured tick.
 | Left / Right | seek ±5s |
 | Up / Down or [ / ] | speed ±5% (25%-200%) |
 | Tab | cycle mode |
-| F1 | show / hide note names on bars |
+| F1 | bar labels: fingers + names / fingers / names / off |
 | F2 | practise both hands / right / left |
 | F3 | loop the current 4 bars / stop looping |
 | PgUp / PgDn | previous / next song |
@@ -164,6 +179,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/fingering.rs`: automatic fingering (dynamic programming, ergonomic costs)
 - `src/synth.rs`: additive struck-string synth (pure sample generation)
 - `src/render.rs`: offline song mixdown to WAV
 - `src/practice.rs`: loop regions for drilling sections
@@ -177,7 +193,7 @@ Layout:
 Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, bar
 lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
+bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
 piano-like additive synth.
 
 Not yet done: key signatures and flats (all accidentals are written as

@@ -398,19 +398,110 @@ fn misses_announce_themselves() {
 }
 
 #[test]
-fn note_name_labels_toggle() {
+fn f1_cycles_bar_labels_through_fingers_and_names() {
+    use keybard::app::falling::{BarFinger, BarLabels};
     let mut h = Harness::new(song(), PlayMode::Listen);
-    let visible = |h: &mut Harness| {
-        let mut q = h.world().query_filtered::<&Visibility, With<BarLabel>>();
-        q.iter(h.app.world())
-            .filter(|v| **v != Visibility::Hidden)
-            .count()
+    let shown = |h: &mut Harness| {
+        let names = {
+            let mut q = h.world().query_filtered::<&Visibility, With<BarLabel>>();
+            q.iter(h.app.world())
+                .filter(|v| **v != Visibility::Hidden)
+                .count()
+        };
+        let fingers = {
+            let mut q = h.world().query_filtered::<&Visibility, With<BarFinger>>();
+            q.iter(h.app.world())
+                .filter(|v| **v != Visibility::Hidden)
+                .count()
+        };
+        (names, fingers)
     };
-    assert_eq!(visible(&mut h), 4);
+    assert_eq!(*h.world().resource::<BarLabels>(), BarLabels::Both);
+    assert_eq!(shown(&mut h), (4, 4));
     h.tap(KeyCode::F1);
-    assert_eq!(visible(&mut h), 0);
+    assert_eq!(shown(&mut h), (0, 4), "fingers only");
     h.tap(KeyCode::F1);
-    assert_eq!(visible(&mut h), 4);
+    assert_eq!(shown(&mut h), (4, 0), "names only");
+    h.tap(KeyCode::F1);
+    assert_eq!(shown(&mut h), (0, 0), "off");
+    h.tap(KeyCode::F1);
+    assert_eq!(shown(&mut h), (4, 4), "back to both");
+}
+
+#[test]
+fn bars_and_noteheads_show_the_recommended_finger() {
+    use keybard::app::falling::BarFinger;
+    use keybard::app::notation::HeadFinger;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let song = h.world().resource::<ActiveSong>().0.clone();
+    let expected = |id: NoteId| song.finger(id).number().to_string();
+    let mut bars = h.world().query::<(&FallingBar, &Children)>();
+    let mut texts = h.world().query_filtered::<&Text2d, With<BarFinger>>();
+    let bar_fingers: Vec<(NoteId, String)> = bars
+        .iter(h.app.world())
+        .map(|(bar, children)| {
+            let text = children
+                .iter()
+                .find_map(|c| texts.get(h.app.world(), c).ok())
+                .map(|t| t.0.clone())
+                .expect("bar has a finger label");
+            (bar.0, text)
+        })
+        .collect();
+    assert_eq!(bar_fingers.len(), 4);
+    bar_fingers
+        .iter()
+        .for_each(|(id, text)| assert_eq!(*text, expected(*id)));
+
+    let mut heads = h.world().query::<(&NoteHead, &Children)>();
+    let mut head_texts = h.world().query_filtered::<&Text2d, With<HeadFinger>>();
+    let head_fingers: Vec<(NoteId, String)> = heads
+        .iter(h.app.world())
+        .filter_map(|(head, children)| {
+            children
+                .iter()
+                .find_map(|c| head_texts.get(h.app.world(), c).ok())
+                .map(|t| (head.0, t.0.clone()))
+        })
+        .collect();
+    assert_eq!(head_fingers.len(), 4);
+    head_fingers
+        .iter()
+        .for_each(|(id, text)| assert_eq!(*text, expected(*id)));
+}
+
+#[test]
+fn keys_show_which_finger_to_use_as_notes_approach() {
+    use keybard::app::piano::{APPROACH, KeyFinger};
+    let mut h = Harness::new(song(), PlayMode::Wait);
+    let finger_on = |h: &mut Harness, note: u8| {
+        let mut keys = h.world().query::<(&PianoKey, &Children)>();
+        let mut texts = h.world().query_filtered::<&Text2d, With<KeyFinger>>();
+        keys.iter(h.app.world())
+            .find(|(k, _)| k.note == n(note))
+            .and_then(|(_, children)| {
+                children
+                    .iter()
+                    .find_map(|c| texts.get(h.app.world(), c).ok())
+            })
+            .map(|t| t.0.clone())
+            .unwrap_or_default()
+    };
+    let song = h.world().resource::<ActiveSong>().0.clone();
+    let e4 = song.finger(NoteId(E4)).number().to_string();
+    h.run_until(0.0);
+    assert_eq!(
+        finger_on(&mut h, 60),
+        song.finger(NoteId(C4)).number().to_string()
+    );
+    h.midi(60, KeyEdge::Down);
+    h.midi(48, KeyEdge::Down);
+    h.midi(60, KeyEdge::Up);
+    h.midi(48, KeyEdge::Up);
+    h.run_until(0.3);
+    assert_eq!(finger_on(&mut h, 64), "", "too early");
+    h.run_until(1.0 - APPROACH.0 / 2.0);
+    assert_eq!(finger_on(&mut h, 64), e4);
 }
 
 #[test]

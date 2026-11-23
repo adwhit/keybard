@@ -3,6 +3,7 @@
 use std::ops::{Add, Sub};
 
 use crate::error::Error;
+use crate::fingering::{self, Finger};
 use crate::music::{Letter, MidiNote};
 
 /// A point in (or span of) song time, in seconds.
@@ -107,6 +108,8 @@ pub struct Song {
     pub tempo: Tempo,
     /// Sorted by start time, then pitch.
     notes: Vec<Note>,
+    /// Recommended finger for each note, parallel to `notes`.
+    fingers: Vec<Finger>,
 }
 
 impl Song {
@@ -119,10 +122,12 @@ impl Song {
             return Err(Error::EmptySong);
         }
         notes.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.pitch.cmp(&b.pitch)));
+        let fingers = fingering::assign(&notes);
         Ok(Self {
             title: title.into(),
             tempo,
             notes,
+            fingers,
         })
     }
 
@@ -132,6 +137,11 @@ impl Song {
 
     pub fn note(&self, id: NoteId) -> &Note {
         &self.notes[id.0]
+    }
+
+    /// The recommended finger for a note.
+    pub fn finger(&self, id: NoteId) -> Finger {
+        self.fingers[id.0]
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (NoteId, &Note)> {

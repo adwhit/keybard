@@ -3,6 +3,7 @@
 pub mod app;
 pub mod builtin;
 pub mod error;
+pub mod fingering;
 pub mod layout;
 pub mod midi_file;
 pub mod music;

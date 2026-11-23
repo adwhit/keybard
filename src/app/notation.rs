@@ -22,6 +22,13 @@ struct ClefGizmos;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct NoteHead(pub NoteId);
 
+/// The recommended-finger digit beside a notehead.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct HeadFinger;
+
+/// Gap between a notehead's centre and its finger digit.
+const FINGER_OFFSET: f32 = 13.0;
+
 #[derive(Resource)]
 struct HeadMaterials {
     ink: Handle<ColorMaterial>,
@@ -156,6 +163,25 @@ fn spawn_heads(
             MeshMaterial2d(materials.ink.clone()),
             Transform::from_xyz(0.0, 0.0, HEAD_Z).with_rotation(Quat::from_rotation_z(HEAD_TILT)),
             Visibility::Hidden,
+        ));
+        // Put the digit on the side away from the stem.
+        let (_, position) = head_position(note);
+        let side = match position.stem_direction() {
+            StemDirection::Up => -1.0,
+            StemDirection::Down => 1.0,
+        };
+        head.with_child((
+            HeadFinger,
+            Text2d::new(song.finger(id).number().to_string()),
+            TextFont {
+                font_size: FontSize::Px(9.0),
+                ..default()
+            },
+            TextColor(palette::STAFF_LINE),
+            // Undo the head's tilt so the digit stands upright.
+            Transform::from_rotation(Quat::from_rotation_z(-HEAD_TILT)).with_translation(
+                Quat::from_rotation_z(-HEAD_TILT) * Vec3::new(0.0, side * FINGER_OFFSET, 0.2),
+            ),
         ));
         if shape_of(song, note).is_hollow() {
             head.with_child((

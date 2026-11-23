@@ -19,15 +19,47 @@ pub struct FallingBar(pub NoteId);
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Backdrop;
 
-/// The note-name label on a bar.
+/// The note-name label on a bar. `stacked` labels sit above the finger
+/// number; short bars only have room for one of the two.
 #[derive(Component, Debug, Clone, Copy)]
-pub struct BarLabel;
+pub struct BarLabel {
+    stacked: bool,
+}
 
-/// Whether bars show their note names. Toggled with F1.
+/// The recommended-finger number on a bar.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct BarFinger;
+
+/// What the bars are labelled with. F1 cycles through these.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoteNames {
-    Shown,
-    Hidden,
+pub enum BarLabels {
+    Both,
+    Fingers,
+    Names,
+    Off,
+}
+
+impl BarLabels {
+    fn next(self) -> Self {
+        match self {
+            Self::Both => Self::Fingers,
+            Self::Fingers => Self::Names,
+            Self::Names => Self::Off,
+            Self::Off => Self::Both,
+        }
+    }
+
+    fn shows_fingers(self) -> bool {
+        matches!(self, Self::Both | Self::Fingers)
+    }
+
+    fn shows_name(self, label: BarLabel) -> bool {
+        match self {
+            Self::Names => true,
+            Self::Both => label.stacked,
+            Self::Fingers | Self::Off => false,
+        }
+    }
 }
 
 /// What a bar looks like right now.
@@ -60,6 +92,8 @@ pub const GHOST_ALPHA: f32 = 0.3;
 const MIN_BAR_HEIGHT: f32 = 14.0;
 /// Labels need this much bar to sit inside.
 const MIN_LABELLED_HEIGHT: f32 = 18.0;
+/// Bars this tall fit both the finger number and the note name.
+const MIN_STACKED_HEIGHT: f32 = 34.0;
 const BACKDROP_Z: f32 = 0.0;
 const LANE_Z: f32 = 0.1;
 const GUIDE_Z: f32 = 0.2;
@@ -69,10 +103,10 @@ const BLACK_BAR_Z: f32 = 1.5;
 const PANEL_Z: f32 = 5.0;
 
 pub fn plugin(app: &mut App) {
-    app.insert_resource(NoteNames::Shown)
+    app.insert_resource(BarLabels::Both)
         .add_systems(Startup, spawn_backdrop)
         .add_systems(Update, (spawn_lanes, spawn_bars).in_set(SongLoad))
-        .add_systems(Update, toggle_note_names.in_set(Phase::Input))
+        .add_systems(Update, cycle_labels.in_set(Phase::Input))
         .add_systems(
             Update,
             (move_bars, show_labels, draw_bar_lines).in_set(Phase::Present),
@@ -163,38 +197,56 @@ fn spawn_bars(
             Visibility::Hidden,
         ));
         if height >= MIN_LABELLED_HEIGHT {
+            let stacked = height >= MIN_STACKED_HEIGHT;
             bar.with_child((
-                BarLabel,
-                Text2d::new(note.pitch.pitch_class().to_string()),
+                BarFinger,
+                Text2d::new(song.0.finger(id).number().to_string()),
                 TextFont {
-                    font_size: FontSize::Px(11.0),
+                    font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
-                Transform::from_xyz(0.0, 9.0, 0.05),
+                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
+                Transform::from_xyz(0.0, 10.0, 0.05),
+            ));
+            bar.with_child((
+                BarLabel { stacked },
+                Text2d::new(note.pitch.pitch_class().to_string()),
+                TextFont {
+                    font_size: FontSize::Px(10.0),
+                    ..default()
+                },
+                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                Transform::from_xyz(0.0, if stacked { 26.0 } else { 10.0 }, 0.05),
             ));
         }
     });
 }
 
-fn toggle_note_names(keys: Res<ButtonInput<KeyCode>>, mut names: ResMut<NoteNames>) {
+fn cycle_labels(keys: Res<ButtonInput<KeyCode>>, mut labels: ResMut<BarLabels>) {
     if keys.just_pressed(KeyCode::F1) {
-        *names = match *names {
-            NoteNames::Shown => NoteNames::Hidden,
-            NoteNames::Hidden => NoteNames::Shown,
-        };
+        *labels = labels.next();
     }
 }
 
-fn show_labels(names: Res<NoteNames>, mut labels: Query<&mut Visibility, With<BarLabel>>) {
-    if !names.is_changed() {
-        return;
-    }
-    let visibility = match *names {
-        NoteNames::Shown => Visibility::Inherited,
-        NoteNames::Hidden => Visibility::Hidden,
+fn show_labels(
+    labels: Res<BarLabels>,
+    mut names: Query<(&BarLabel, &mut Visibility), Without<BarFinger>>,
+    mut fingers: Query<&mut Visibility, With<BarFinger>>,
+) {
+    let visible = |shown: bool| {
+        if shown {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        }
     };
-    labels.iter_mut().for_each(|mut v| *v = visibility);
+    // Runs every frame so newly spawned bars (song switches) follow suit.
+    names.iter_mut().for_each(|(label, mut v)| {
+        v.set_if_neq(visible(labels.shows_name(*label)));
+    });
+    fingers.iter_mut().for_each(|mut v| {
+        v.set_if_neq(visible(labels.shows_fingers()));
+    });
 }
 
 fn move_bars(

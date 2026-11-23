@@ -16,6 +16,10 @@ use crate::music::{KeyColor, MidiNote, PitchClass};
 use crate::performance::NoteStatus;
 use crate::song::{Hand, Seconds};
 
+/// The finger digit shown on a key while its note approaches or sounds.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct KeyFinger;
+
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PianoKey {
     pub note: MidiNote,
@@ -29,6 +33,7 @@ const KEY_GAP: f32 = 1.0;
 pub fn plugin(app: &mut App) {
     app.add_systems(Startup, spawn_key_bed)
         .add_systems(Update, spawn_keys.in_set(SongLoad))
+        .add_systems(Update, show_key_fingers.in_set(Phase::Present))
         .add_systems(Startup, spawn_hit_line)
         .add_systems(Update, (color_keys, pulse_hit_line).in_set(Phase::Present));
 }
@@ -67,6 +72,20 @@ fn spawn_key(commands: &mut Commands, note: MidiNote, geometry: KeyGeometry) {
         Sprite::from_color(color, Vec2::new(geometry.width - KEY_GAP, height)),
         Anchor::TOP_CENTER,
         Transform::from_xyz(geometry.center_x, layout::HIT_LINE, z),
+    ));
+    let (finger_y, finger_color) = match geometry.color {
+        KeyColor::White => (-layout::BLACK_KEY_HEIGHT - 22.0, palette::INK),
+        KeyColor::Black => (-height + 16.0, palette::WHITE_KEY),
+    };
+    key.with_child((
+        KeyFinger,
+        Text2d::new(""),
+        TextFont {
+            font_size: FontSize::Px(16.0),
+            ..default()
+        },
+        TextColor(finger_color),
+        Transform::from_xyz(0.0, finger_y, 0.2),
     ));
     // Label every C so players can find their place.
     if note.pitch_class() == PitchClass::C {
@@ -207,4 +226,37 @@ fn pulse_hit_line(
     line.color = palette::HIT_LINE
         .mix(&palette::FIRE, glow.0)
         .with_alpha(strength);
+}
+
+/// Shows which finger to use on keys whose (player's) note is about to land
+/// or is sounding now.
+fn show_key_fingers(
+    keys: Query<(&PianoKey, &Children)>,
+    mut digits: Query<&mut Text2d, With<KeyFinger>>,
+    transport: Res<Transport>,
+    song: Res<ActiveSong>,
+    judge: Res<Judge>,
+) {
+    let now = transport.time;
+    let wanted: HashMap<MidiNote, String> = song
+        .0
+        .iter()
+        .filter(|(id, n)| {
+            let upcoming = n.start > now
+                && n.start <= now + APPROACH
+                && judge.0.status(*id) == NoteStatus::Pending;
+            (upcoming || n.is_sounding_at(now)) && judge.0.is_players(&song.0, *id)
+        })
+        .map(|(id, n)| (n.pitch, song.0.finger(id).number().to_string()))
+        .collect();
+    keys.iter().for_each(|(key, children)| {
+        let text = wanted.get(&key.note).cloned().unwrap_or_default();
+        children.iter().for_each(|child| {
+            if let Ok(mut digit) = digits.get_mut(child)
+                && digit.0 != text
+            {
+                digit.0.clone_from(&text);
+            }
+        });
+    });
 }

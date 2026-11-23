@@ -2,6 +2,7 @@
 //! ~100MB, so separate binaries cost seconds of linking and loading apiece.
 
 mod app;
+mod fingering;
 mod layout;
 mod midi_file;
 mod music;
