@@ -412,3 +412,36 @@ fn sight_reading_a_song_well_unlocks_sight_reader() {
     let unlocked = h.world().resource::<LastResult>().new_achievements.clone();
     assert!(unlocked.contains(&Achievement::SightReader), "{unlocked:?}");
 }
+
+#[test]
+fn a_bar_of_perfect_hits_is_celebrated() {
+    use keybard::app::effects::PerfectBarFlash;
+    let mut h = Harness::new(song(), PlayMode::Play);
+    // Every note of the one bar (C3+C4 at 0, E4 at 1, G4 at 2), on the beat.
+    [(0.0, vec![48, 60]), (1.0, vec![64]), (2.0, vec![67])]
+        .into_iter()
+        .for_each(|(t, notes)| {
+            h.run_until(t);
+            notes.iter().for_each(|n| h.midi(*n, KeyEdge::Down));
+        });
+    let mut celebrated = false;
+    while h.time().0 < 4.4 && h.transport().state == PlayState::Playing {
+        h.app.update();
+        celebrated |= h.texts().contains(&"PERFECT BAR".to_owned());
+    }
+    assert!(celebrated, "score: {:?}", h.score());
+    assert!(h.count::<PerfectBarFlash>() <= 1);
+}
+
+#[test]
+fn imperfect_bars_pass_quietly() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(0.15);
+    h.midi(60, KeyEdge::Down); // late: Good, not Perfect
+    let mut celebrated = false;
+    while h.time().0 < 4.4 && h.transport().state == PlayState::Playing {
+        h.app.update();
+        celebrated |= h.texts().contains(&"PERFECT BAR".to_owned());
+    }
+    assert!(!celebrated);
+}

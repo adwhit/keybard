@@ -435,3 +435,28 @@ fn wrong_notes_carry_the_suggestion() {
         Some(n(64))
     );
 }
+
+#[test]
+fn perfect_bars_need_every_note_perfect() {
+    // 60bpm 2/4: bar 1 = C4 D4, bar 2 = E4 F4.
+    let tempo = Tempo::from_bpm(60.0, 2);
+    let song = Song::new(
+        "p",
+        tempo,
+        parse_voice("C4 D4 E4 F4", Hand::Right, tempo).unwrap(),
+    )
+    .unwrap();
+    let mut perf = Performance::new(&song);
+    assert!(!perf.bar_is_perfect(&song, 0), "nothing played yet");
+    hit(perf.press(&song, n(60), Seconds(0.0)));
+    assert!(!perf.bar_is_perfect(&song, 0), "half the bar");
+    hit(perf.press(&song, n(62), Seconds(1.02)));
+    assert!(perf.bar_is_perfect(&song, 0));
+    hit(perf.press(&song, n(64), Seconds(2.0)));
+    hit(perf.press(&song, n(65), Seconds(3.1))); // Great, not Perfect
+    assert!(!perf.bar_is_perfect(&song, 1));
+    assert!(
+        !perf.bar_is_perfect(&song, 7),
+        "bars without notes never count"
+    );
+}

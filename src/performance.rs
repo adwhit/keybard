@@ -298,6 +298,19 @@ impl Performance {
             .collect()
     }
 
+    /// Whether every one of the player's notes in a (0-based) bar was hit
+    /// Perfect. Bars with none of the player's notes never count.
+    pub fn bar_is_perfect(&self, song: &Song, bar: usize) -> bool {
+        let length = song.tempo.bar_length().0;
+        let mut notes = song
+            .iter()
+            .filter(|(_, n)| self.hands.includes(n.hand))
+            .filter(|(_, n)| ((n.start.0 / length + 1e-4) as usize) == bar)
+            .peekable();
+        notes.peek().is_some()
+            && notes.all(|(id, _)| self.statuses[id.0] == NoteStatus::Hit(Timing::Perfect))
+    }
+
     /// What to work on, from the player's judged notes.
     pub fn insights(&self, song: &Song) -> Insights {
         let judged = |hand: Hand| {

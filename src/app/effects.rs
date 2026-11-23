@@ -5,10 +5,10 @@ use bevy::prelude::*;
 use bevy::sprite::Text2dShadow;
 
 use super::textures::Textures;
-use super::transport::CountInTick;
+use super::transport::{CountInTick, Transport};
 use super::{ActiveSong, Feedback, Judge, Keys, Phase, palette};
 use crate::layout;
-use crate::performance::Timing;
+use crate::performance::{HIT_WINDOW, Timing};
 use crate::song::Hand;
 
 /// Something that fades out and despawns after `lifetime` seconds.
@@ -52,6 +52,10 @@ pub struct Popup {
     pop: f32,
 }
 
+/// The gold sweep across the hit line after a perfect bar.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct PerfectBarFlash;
+
 /// A glow over a key that was just hit.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct KeyFlash;
@@ -85,7 +89,12 @@ pub fn plugin(app: &mut App) {
     app.insert_resource(Rng(0x9E37_79B9)).add_systems(
         Update,
         (
-            (spawn_from_feedback, combo_milestones, count_in),
+            (
+                spawn_from_feedback,
+                combo_milestones,
+                count_in,
+                perfect_bars,
+            ),
             (age_ephemerals, move_particles, animate_popups, fade_flashes),
         )
             .chain()
@@ -284,6 +293,54 @@ fn combo_milestones(mut commands: Commands, judge: Res<Judge>, mut last_combo: L
         );
     }
     *last_combo = combo;
+}
+
+/// Once each bar's hit window has closed, celebrate it if every one of the
+/// player's notes in it was Perfect.
+fn perfect_bars(
+    mut commands: Commands,
+    transport: Res<Transport>,
+    song: Res<ActiveSong>,
+    judge: Res<Judge>,
+    textures: Res<Textures>,
+    mut next_bar: Local<usize>,
+) {
+    let length = song.0.tempo.bar_length().0;
+    // Bars that ended at least a hit window ago.
+    let settled = ((transport.time.0 - HIT_WINDOW.0) / length).floor();
+    let done = if settled < 1.0 { 0 } else { settled as usize };
+    if done < *next_bar {
+        // The clock went back (restart, seek, loop): check those bars again.
+        *next_bar = done;
+    }
+    if !transport.mode.is_scored() {
+        *next_bar = done;
+        return;
+    }
+    let perfect = (*next_bar..done).any(|bar| judge.0.bar_is_perfect(&song.0, bar));
+    *next_bar = done;
+    if perfect {
+        popup(
+            &mut commands,
+            "PERFECT BAR",
+            palette::timing(Timing::Perfect),
+            Vec2::new(0.0, layout::HIT_LINE + 70.0),
+            22.0,
+            1.0,
+        );
+        commands.spawn((
+            PerfectBarFlash,
+            KeyFlash,
+            Ephemeral::new(0.6),
+            Sprite {
+                image: textures.glow.clone(),
+                color: palette::timing(Timing::Perfect).with_alpha(0.8),
+                custom_size: Some(Vec2::new(layout::CANVAS_WIDTH * 1.3, 140.0)),
+                ..default()
+            },
+            Transform::from_xyz(0.0, layout::HIT_LINE, FLASH_Z),
+        ));
+    }
 }
 
 /// The current count-in number; each new beat replaces the last.
