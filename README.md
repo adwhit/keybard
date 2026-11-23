@@ -122,7 +122,9 @@ large digit on a key while its note is about to land or is sounding.
 
 Where the hand has to move (a thumb-under, a finger crossing over the thumb,
 or a jump to a new five-finger position), the bar gets an amber strip along
-its bottom edge and an amber digit, so you can see shifts coming.
+its bottom edge and its finger number on an amber badge, so you can see shifts
+coming. Finger digits switch between dark and light ink to stay readable on
+every bar colour.
 
 ### Sight-reading
 

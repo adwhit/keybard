@@ -30,6 +30,17 @@ pub struct BarLabel {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ShiftMarker;
 
+/// Amber patch behind the finger digit of a bar that shifts the hand.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ShiftBadge;
+
+/// Bar text whose ink doesn't follow the bar's colour (it sits on a badge).
+#[derive(Component, Debug, Clone, Copy)]
+struct InkFixed;
+
+/// Note names are secondary to finger numbers.
+const LABEL_INK_ALPHA: f32 = 0.6;
+
 /// The recommended-finger number on a bar.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct BarFinger;
@@ -124,7 +135,12 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, cycle_labels.in_set(Phase::Input))
         .add_systems(
             Update,
-            (move_bars, show_labels, draw_bar_lines).in_set(Phase::Present),
+            (
+                (move_bars, ink_bar_text).chain(),
+                show_labels,
+                draw_bar_lines,
+            )
+                .in_set(Phase::Present),
         );
 }
 
@@ -226,20 +242,32 @@ fn spawn_bars(
         }
         if height >= MIN_LABELLED_HEIGHT {
             let stacked = height >= MIN_STACKED_HEIGHT;
-            bar.with_child((
-                BarFinger,
-                Text2d::new(song.0.finger(id).number().to_string()),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(if shift {
-                    palette::SHIFT_INK
-                } else {
-                    Color::srgba(0.0, 0.0, 0.0, 0.75)
-                }),
-                Transform::from_xyz(0.0, 12.0, 0.05),
-            ));
+            bar.with_children(|labels| {
+                let mut digit = labels.spawn((
+                    BarFinger,
+                    Text2d::new(song.0.finger(id).number().to_string()),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(palette::DARK_INK),
+                    Transform::from_xyz(0.0, 12.0, 0.05),
+                ));
+                if shift {
+                    // The new position's finger, on an amber badge.
+                    digit.insert(InkFixed).with_child((
+                        ShiftBadge,
+                        Sprite {
+                            image: textures.rounded.clone(),
+                            color: palette::SHIFT,
+                            custom_size: Some(Vec2::splat(15.0)),
+                            image_mode: Textures::rounded_mode(),
+                            ..default()
+                        },
+                        Transform::from_xyz(0.0, 0.0, -0.01),
+                    ));
+                }
+            });
             bar.with_child((
                 BarLabel { stacked },
                 Text2d::new(note.pitch.pitch_class().to_string()),
@@ -247,7 +275,7 @@ fn spawn_bars(
                     font_size: FontSize::Px(10.0),
                     ..default()
                 },
-                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                TextColor(palette::DARK_INK.with_alpha(LABEL_INK_ALPHA)),
                 Transform::from_xyz(0.0, if stacked { 26.0 } else { 10.0 }, 0.05),
             ));
         }
@@ -335,6 +363,25 @@ fn move_bars(
                 color.with_alpha(GHOST_ALPHA)
             };
         });
+}
+
+/// Keep bar text readable as bars change colour: dark ink on light bars,
+/// light ink on dark ones.
+fn ink_bar_text(
+    bars: Query<(&Sprite, &Children), With<FallingBar>>,
+    mut texts: Query<(&mut TextColor, Has<BarLabel>), Without<InkFixed>>,
+) {
+    bars.iter().for_each(|(sprite, children)| {
+        // Translucent (ghost) bars are seen over the dark background.
+        let seen = palette::BACKGROUND.mix(&sprite.color.with_alpha(1.0), sprite.color.alpha());
+        let ink = palette::ink_on(seen);
+        children.iter().for_each(|child| {
+            if let Ok((mut color, is_name)) = texts.get_mut(child) {
+                let alpha = if is_name { LABEL_INK_ALPHA } else { 1.0 };
+                color.set_if_neq(TextColor(ink.with_alpha(alpha)));
+            }
+        });
+    });
 }
 
 /// A faint horizontal line on each bar line of the music.

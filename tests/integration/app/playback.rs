@@ -442,6 +442,56 @@ fn switching_songs_mid_performance_is_safe() {
     h.run_until(1.0);
 }
 
+/// WCAG relative luminance of an opaque colour.
+fn luminance(color: Color) -> f32 {
+    let c = color.to_linear();
+    0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue
+}
+
+fn contrast(a: Color, b: Color) -> f32 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+#[test]
+fn finger_digits_stand_out_from_their_bars() {
+    use keybard::app::falling::{BarFinger, ShiftBadge};
+    use keybard::builtin::BuiltinSong;
+    // Soft (darker bars), both hands, with hand shifts.
+    let mut h = Harness::new(BuiltinSong::FurElise.load().unwrap(), PlayMode::Listen);
+    h.run_until(1.0);
+    let mut bars = h
+        .world()
+        .query::<(&FallingBar, &Sprite, &Visibility, &Children)>();
+    let mut digits = h
+        .world()
+        .query_filtered::<(&TextColor, Option<&Children>), With<BarFinger>>();
+    let mut badges = h.world().query_filtered::<&Sprite, With<ShiftBadge>>();
+    let world = h.app.world();
+    let mut badged = 0;
+    let checked: Vec<f32> = bars
+        .iter(world)
+        .filter(|(_, _, v, _)| **v != Visibility::Hidden)
+        .filter_map(|(_, bar, _, children)| {
+            let (ink, under) = children.iter().find_map(|c| digits.get(world, c).ok())?;
+            // A hand-shift digit sits on its own badge.
+            let badge = under
+                .into_iter()
+                .flat_map(|u| u.iter())
+                .find_map(|c| badges.get(world, c).ok());
+            badged += usize::from(badge.is_some());
+            let behind = badge.map_or(bar.color, |badge| badge.color);
+            // Translucent ink is seen mixed with what's behind it.
+            let seen = behind.mix(&ink.0.with_alpha(1.0), ink.0.alpha());
+            Some(contrast(seen, behind))
+        })
+        .collect();
+    assert!(checked.len() > 5, "{checked:?}");
+    assert!(badged > 0, "Fur Elise shifts hand position early on");
+    let worst = checked.iter().copied().fold(f32::INFINITY, f32::min);
+    assert!(worst >= 4.5, "worst digit contrast {worst:.2}: {checked:?}");
+}
+
 #[test]
 fn bars_mark_where_the_hand_shifts_position() {
     use keybard::app::falling::ShiftMarker;

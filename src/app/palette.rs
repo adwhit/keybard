@@ -27,7 +27,9 @@ pub const WHITE_KEY: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const BLACK_KEY: Color = Color::srgb(0.07, 0.07, 0.08);
 /// Hand-position shift markers on bars.
 pub const SHIFT: Color = Color::srgb(1.0, 0.78, 0.25);
-pub const SHIFT_INK: Color = Color::srgb(0.45, 0.25, 0.0);
+/// Text drawn on light and dark surfaces.
+pub const DARK_INK: Color = Color::srgb(0.04, 0.04, 0.06);
+pub const LIGHT_INK: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const PRESSED: Color = Color::srgb(1.0, 0.65, 0.15);
 pub const KEY_LABEL: Color = Color::srgb(0.45, 0.45, 0.50);
 pub const HUD_TEXT: Color = Color::srgb(0.85, 0.85, 0.88);
@@ -57,6 +59,18 @@ pub fn hand_hint(hand: Hand, key: KeyColor) -> Color {
     match key {
         KeyColor::White => WHITE_KEY.mix(&self::hand(hand), 0.45),
         KeyColor::Black => BLACK_KEY.mix(&self::hand(hand), 0.55),
+    }
+}
+
+/// Whichever ink reads better on `background` (by WCAG luminance; the two
+/// contrasts are equal around 0.18).
+pub fn ink_on(background: Color) -> Color {
+    let c = background.to_linear();
+    let luminance = 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue;
+    if luminance > 0.18 {
+        DARK_INK
+    } else {
+        LIGHT_INK
     }
 }
 
