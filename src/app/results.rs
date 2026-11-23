@@ -12,6 +12,7 @@ use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
 
 use super::section::LOOP_BARS;
+use super::songs::SongScoped;
 
 /// Where personal bests live.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +165,7 @@ fn spawn_card(commands: &mut Commands, result: &LastResult) {
 
     commands
         .spawn((
+            SongScoped,
             ResultsCard,
             Node {
                 position_type: PositionType::Absolute,

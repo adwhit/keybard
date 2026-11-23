@@ -20,6 +20,7 @@ pub mod piano;
 pub mod results;
 pub mod section;
 mod snapshot;
+pub mod songs;
 mod textures;
 pub mod transport;
 
@@ -129,6 +130,8 @@ pub struct Options {
     pub hands: Hands,
     /// Start looping `section::LOOP_BARS` bars from this (1-based) bar.
     pub loop_from: Option<u32>,
+    /// Songs PgUp/PgDn switch between (may be empty).
+    pub playlist: songs::Playlist,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -212,6 +215,7 @@ pub fn build(options: Options) -> App {
         .insert_resource(Judge(performance))
         .insert_resource(transport)
         .insert_resource(section::SectionLoop(looping))
+        .insert_resource(options.playlist)
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
         .add_message::<Feedback>()
@@ -231,6 +235,7 @@ pub fn build(options: Options) -> App {
             notation::plugin,
             hud::plugin,
             section::plugin,
+            songs::plugin,
             heat::plugin,
         ));
     if options.player == Player::Autopilot {

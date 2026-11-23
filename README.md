@@ -37,6 +37,10 @@ Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
 works too: with two or more note tracks the first is the right hand, and with a
 single track the split is at middle C.
 
+PgUp/PgDn switch songs at any time, cycling through every built-in plus the
+MIDI file you opened. During the lead-in and while paused, a song list shows
+each one with your best grade and points for the current mode.
+
 ### Modes (Tab cycles)
 
 - **Listen**: the song plays itself.
@@ -112,6 +116,7 @@ that records every judgement as a coloured tick.
 | F1 | show / hide note names on bars |
 | F2 | practise both hands / right / left |
 | F3 | loop the current 4 bars / stop looping |
+| PgUp / PgDn | previous / next song |
 | Backspace | restart |
 | Esc | quit |
 | Z S X D C V … | play the lower octave (C3 by default) |

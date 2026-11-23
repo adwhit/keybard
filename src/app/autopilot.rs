@@ -42,6 +42,9 @@ fn play(
     if !transport.mode.is_scored() || transport.state != PlayState::Playing {
         return;
     }
+    if song.is_changed() {
+        *fingers = Fingers::default();
+    }
     let now = transport.time;
     // Forget everything when the clock goes back (restart / seek).
     if fingers

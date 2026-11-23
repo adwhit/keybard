@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use bevy::app::AppExit;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+use keybard::app::songs::{Playlist, SongSource};
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
 use keybard::performance::{Hands, PlayMode};
@@ -95,6 +96,25 @@ fn main() -> ExitCode {
         Some(path) => midi_file::load(path),
         None => cli.song.load(),
     };
+    // A MIDI file goes first, followed by every built-in.
+    let builtins = BuiltinSong::value_variants()
+        .iter()
+        .map(|b| SongSource::Builtin(*b));
+    let playlist = match &cli.midi {
+        Some(path) => Playlist::new(
+            std::iter::once(SongSource::File(path.clone()))
+                .chain(builtins)
+                .collect(),
+            0,
+        ),
+        None => Playlist::new(
+            builtins.collect(),
+            BuiltinSong::value_variants()
+                .iter()
+                .position(|b| *b == cli.song)
+                .unwrap_or(0),
+        ),
+    };
     let song = match song {
         Ok(song) => song,
         Err(err) => {
@@ -142,6 +162,7 @@ fn main() -> ExitCode {
         records,
         hands: cli.hands.into(),
         loop_from: cli.loop_from,
+        playlist,
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

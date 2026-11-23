@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::songs::{SongLoad, SongScoped};
 use super::textures::Textures;
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Keys, Phase, palette};
@@ -69,7 +70,8 @@ const PANEL_Z: f32 = 5.0;
 
 pub fn plugin(app: &mut App) {
     app.insert_resource(NoteNames::Shown)
-        .add_systems(Startup, (spawn_backdrop, spawn_bars))
+        .add_systems(Startup, spawn_backdrop)
+        .add_systems(Update, (spawn_lanes, spawn_bars).in_set(SongLoad))
         .add_systems(Update, toggle_note_names.in_set(Phase::Input))
         .add_systems(
             Update,
@@ -77,7 +79,7 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-fn spawn_backdrop(mut commands: Commands, keys: Res<Keys>, textures: Res<Textures>) {
+fn spawn_backdrop(mut commands: Commands, textures: Res<Textures>) {
     let fall_height = layout::NOTATION_BOTTOM - layout::HIT_LINE;
     commands.spawn((
         Sprite::from_color(
@@ -99,7 +101,10 @@ fn spawn_backdrop(mut commands: Commands, keys: Res<Keys>, textures: Res<Texture
         Anchor::BOTTOM_CENTER,
         Transform::from_xyz(0.0, layout::HIT_LINE, BACKDROP_Z),
     ));
+}
 
+fn spawn_lanes(mut commands: Commands, keys: Res<Keys>) {
+    let fall_height = layout::NOTATION_BOTTOM - layout::HIT_LINE;
     let range = keys.0;
     let half_white = range.white_key_width() / 2.0;
     let lanes = range
@@ -107,6 +112,7 @@ fn spawn_backdrop(mut commands: Commands, keys: Res<Keys>, textures: Res<Texture
         .filter_map(|n| range.geometry(n).map(|g| (n, g)))
         .filter_map(|(note, g)| match g.color {
             KeyColor::Black => Some((
+                SongScoped,
                 Sprite::from_color(palette::BLACK_LANE, Vec2::new(g.width, fall_height)),
                 Anchor::BOTTOM_CENTER,
                 Transform::from_xyz(g.center_x, layout::HIT_LINE, LANE_Z),
@@ -114,6 +120,7 @@ fn spawn_backdrop(mut commands: Commands, keys: Res<Keys>, textures: Res<Texture
             // Thin separators at every C and F, where there's no black key.
             KeyColor::White if matches!(note.pitch_class(), PitchClass::C | PitchClass::F) => {
                 Some((
+                    SongScoped,
                     Sprite::from_color(palette::GUIDE, Vec2::new(1.0, fall_height)),
                     Anchor::BOTTOM_CENTER,
                     Transform::from_xyz(g.center_x - half_white, layout::HIT_LINE, GUIDE_Z),
@@ -142,6 +149,7 @@ fn spawn_bars(
         let height =
             (note.duration.0 * layout::FALL_PIXELS_PER_SECOND - BAR_GAP).max(MIN_BAR_HEIGHT);
         let mut bar = commands.spawn((
+            SongScoped,
             FallingBar(id),
             Sprite {
                 image: textures.rounded.clone(),

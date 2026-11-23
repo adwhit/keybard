@@ -5,6 +5,7 @@ mod glyphs;
 
 use bevy::prelude::*;
 
+use super::songs::{SongLoad, SongScoped};
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout::{self, staff};
@@ -81,7 +82,8 @@ const SHARP_OFFSET: f32 = 16.0;
 pub fn plugin(app: &mut App) {
     app.init_gizmo_group::<NotationGizmos>()
         .init_gizmo_group::<ClefGizmos>()
-        .add_systems(Startup, (configure_gizmos, spawn_heads))
+        .add_systems(Startup, (configure_gizmos, create_head_assets))
+        .add_systems(Update, spawn_heads.in_set(SongLoad))
         .add_systems(
             Update,
             (update_heads, draw_staves, draw_note_marks).in_set(Phase::Present),
@@ -109,43 +111,60 @@ fn shape_of(song: &Song, note: &Note) -> NoteShape {
     NoteShape::from_beats(song.tempo.to_beats(note.duration))
 }
 
-fn spawn_heads(
+/// Meshes for noteheads, shared by every song.
+#[derive(Resource)]
+struct HeadMeshes {
+    head: Handle<Mesh>,
+    hole: Handle<Mesh>,
+    paper: Handle<ColorMaterial>,
+}
+
+fn create_head_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    song: Res<ActiveSong>,
 ) {
-    let head_mesh = meshes.add(Ellipse::new(HEAD_HALF_SIZE.x, HEAD_HALF_SIZE.y));
-    let hole_mesh = meshes.add(Ellipse::new(
-        HEAD_HALF_SIZE.x * 0.62,
-        HEAD_HALF_SIZE.y * 0.5,
-    ));
-    let paper = materials.add(palette::PAPER);
-    let head_materials = HeadMaterials {
+    commands.insert_resource(HeadMeshes {
+        head: meshes.add(Ellipse::new(HEAD_HALF_SIZE.x, HEAD_HALF_SIZE.y)),
+        hole: meshes.add(Ellipse::new(
+            HEAD_HALF_SIZE.x * 0.62,
+            HEAD_HALF_SIZE.y * 0.5,
+        )),
+        paper: materials.add(palette::PAPER),
+    });
+    commands.insert_resource(HeadMaterials {
         ink: materials.add(palette::INK),
         missed: materials.add(palette::MISSED),
         played: materials.add(palette::PLAYED_INK),
         right: materials.add(palette::hand(Hand::Right)),
         left: materials.add(palette::hand(Hand::Left)),
-    };
+    });
+}
+
+fn spawn_heads(
+    mut commands: Commands,
+    meshes: Res<HeadMeshes>,
+    materials: Res<HeadMaterials>,
+    song: Res<ActiveSong>,
+) {
     let song = &song.0;
     song.iter().for_each(|(id, note)| {
         let mut head = commands.spawn((
+            SongScoped,
             NoteHead(id),
-            Mesh2d(head_mesh.clone()),
-            MeshMaterial2d(head_materials.ink.clone()),
+            Mesh2d(meshes.head.clone()),
+            MeshMaterial2d(materials.ink.clone()),
             Transform::from_xyz(0.0, 0.0, HEAD_Z).with_rotation(Quat::from_rotation_z(HEAD_TILT)),
             Visibility::Hidden,
         ));
         if shape_of(song, note).is_hollow() {
             head.with_child((
-                Mesh2d(hole_mesh.clone()),
-                MeshMaterial2d(paper.clone()),
+                Mesh2d(meshes.hole.clone()),
+                MeshMaterial2d(meshes.paper.clone()),
                 Transform::from_xyz(0.0, 0.0, 0.1),
             ));
         }
     });
-    commands.insert_resource(head_materials);
 }
 
 /// Range of song time currently visible on the staff.

@@ -7,6 +7,7 @@ use bevy::sprite::Anchor;
 
 use super::heat::HeatGlow;
 use super::input::HeldKeys;
+use super::songs::{SongLoad, SongScoped};
 use super::textures::Textures;
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Keys, Phase, palette};
@@ -26,14 +27,14 @@ const BLACK_Z: f32 = 11.0;
 const KEY_GAP: f32 = 1.0;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Startup, spawn_keys)
+    app.add_systems(Startup, spawn_key_bed)
+        .add_systems(Update, spawn_keys.in_set(SongLoad))
         .add_systems(Startup, spawn_hit_line)
         .add_systems(Update, (color_keys, pulse_hit_line).in_set(Phase::Present));
 }
 
-fn spawn_keys(mut commands: Commands, keys: Res<Keys>) {
-    let range = keys.0;
-    // Backdrop behind the keys so gaps read as dark lines.
+/// Backdrop behind the keys so gaps read as dark lines.
+fn spawn_key_bed(mut commands: Commands) {
     commands.spawn((
         Sprite::from_color(
             palette::BACKGROUND,
@@ -42,6 +43,10 @@ fn spawn_keys(mut commands: Commands, keys: Res<Keys>) {
         Anchor::TOP_CENTER,
         Transform::from_xyz(0.0, layout::HIT_LINE, WHITE_Z - 0.5),
     ));
+}
+
+fn spawn_keys(mut commands: Commands, keys: Res<Keys>) {
+    let range = keys.0;
     range
         .notes()
         .filter_map(|note| range.geometry(note).map(|g| (note, g)))
@@ -54,6 +59,7 @@ fn spawn_key(commands: &mut Commands, note: MidiNote, geometry: KeyGeometry) {
         KeyColor::Black => (layout::BLACK_KEY_HEIGHT, BLACK_Z, palette::BLACK_KEY),
     };
     let mut key = commands.spawn((
+        SongScoped,
         PianoKey {
             note,
             color: geometry.color,

@@ -48,6 +48,7 @@ impl Harness {
             records,
             hands: Hands::Both,
             loop_from: None,
+            playlist: Default::default(),
         })
     }
 
@@ -684,6 +685,7 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
         records: RecordStore::Memory,
         hands: Hands::Both,
         loop_from: Some(5),
+        playlist: Default::default(),
     });
     let region = h
         .world()
@@ -848,4 +850,104 @@ fn clean_loop_passes_speed_up_towards_full_tempo() {
         (h.transport().speed.get() - 0.8).abs() < 1e-5,
         "two clean passes: +10%"
     );
+}
+
+fn playlist_harness(mode: PlayMode) -> Harness {
+    use keybard::app::songs::{Playlist, SongSource};
+    use keybard::builtin::BuiltinSong;
+    let playlist = Playlist::new(
+        vec![
+            SongSource::Builtin(BuiltinSong::Twinkle),
+            SongSource::Builtin(BuiltinSong::FurElise),
+        ],
+        0,
+    );
+    Harness::build(Options {
+        song: BuiltinSong::Twinkle.load().unwrap(),
+        mode,
+        midi_input: MidiInput::Disabled,
+        backend: Backend::Headless,
+        logging: Logging::Disabled,
+        player: Player::Human,
+        records: RecordStore::Memory,
+        hands: Hands::Both,
+        loop_from: None,
+        playlist,
+    })
+}
+
+#[test]
+fn page_down_switches_to_the_next_song_and_rebuilds_everything() {
+    use keybard::builtin::BuiltinSong;
+    let mut h = playlist_harness(PlayMode::Play);
+    h.run_until(1.0);
+    h.midi(61, KeyEdge::Down); // leave some score behind
+    assert!(h.score().wrong > 0);
+
+    h.tap(KeyCode::PageDown);
+    let fur_elise = BuiltinSong::FurElise.load().unwrap();
+    assert_eq!(h.world().resource::<ActiveSong>().0.title, fur_elise.title);
+    assert_eq!(
+        h.count::<FallingBar>(),
+        fur_elise.notes().len(),
+        "old bars gone, new ones spawned"
+    );
+    assert_eq!(h.count::<NoteHead>(), fur_elise.notes().len());
+    let range = h.world().resource::<Keys>().0;
+    assert!(
+        range.contains(n(40)) && range.contains(n(76)),
+        "keyboard covers E2..E5"
+    );
+    assert_eq!(h.count::<PianoKey>(), range.notes().count());
+    assert_eq!(h.score(), Score::default(), "fresh score");
+    assert!(h.time().0 < 0.0, "starts with a lead-in");
+    assert_eq!(h.transport().mode, PlayMode::Play, "mode is kept");
+
+    // Wraps around both ways.
+    h.tap(KeyCode::PageDown);
+    assert!(
+        h.world()
+            .resource::<ActiveSong>()
+            .0
+            .title
+            .starts_with("Twinkle")
+    );
+    h.tap(KeyCode::PageUp);
+    assert_eq!(h.world().resource::<ActiveSong>().0.title, fur_elise.title);
+}
+
+#[test]
+fn the_song_list_shows_during_the_lead_in_with_the_current_song_marked() {
+    use keybard::app::songs::SongList;
+    let mut h = playlist_harness(PlayMode::Play);
+    let list = |h: &mut Harness| {
+        let mut q = h
+            .world()
+            .query_filtered::<(&Text, &Visibility), With<SongList>>();
+        let (text, vis) = q.single(h.app.world()).unwrap();
+        (text.0.clone(), *vis != Visibility::Hidden)
+    };
+    let (text, shown) = list(&mut h);
+    assert!(shown);
+    assert!(text.contains("> Twinkle"), "{text}");
+    assert!(text.contains("Fur Elise"), "{text}");
+    h.run_until(0.5);
+    assert!(!list(&mut h).1, "hidden while playing");
+}
+
+#[test]
+fn switching_songs_mid_performance_is_safe() {
+    let mut h = playlist_harness(PlayMode::Play);
+    // Build up effects, ticks and held keys from the first song...
+    h.run_until(0.0);
+    h.midi(60, KeyEdge::Down);
+    h.run_until(2.0);
+    assert!(h.count::<ProgressTick>() > 0);
+    // ...then switch and keep going for a while.
+    h.tap(KeyCode::PageDown);
+    assert_eq!(h.count::<ProgressTick>(), 0, "old ticks cleared");
+    assert_eq!(h.count::<ResultsCard>(), 0);
+    h.run_until(3.0);
+    h.tap(KeyCode::PageDown);
+    h.run_until(1.0);
 }

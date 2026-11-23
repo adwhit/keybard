@@ -76,7 +76,7 @@ impl Grade {
         }
     }
 
-    fn from_accuracy(accuracy: f32) -> Self {
+    pub fn from_accuracy(accuracy: f32) -> Self {
         match accuracy {
             a if a >= 0.95 => Self::S,
             a if a >= 0.85 => Self::A,

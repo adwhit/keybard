@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 use super::section::SectionLoop;
+use super::songs::SongScoped;
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, Phase, palette};
 use crate::layout;
@@ -42,7 +43,7 @@ struct Display {
     last_age: f32,
 }
 
-const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | F3 loop 4 bars | Backspace restart | F1 note names | Esc quit\n\
+const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | F3 loop 4 bars | PgUp/PgDn song | Backspace restart | F1 note names | Esc quit\n\
 Play with Z S X D C V... and Q 2 W 3 E R... | -/= shift octave | or a MIDI keyboard";
 
 const STRIP_HEIGHT: f32 = 5.0;
@@ -316,6 +317,7 @@ fn tick_strip(
         };
         let x = layout::LEFT + song.0.note(id).start.0 / duration * layout::CANVAS_WIDTH;
         commands.spawn((
+            SongScoped,
             ProgressTick,
             Sprite::from_color(color, Vec2::new(2.0, STRIP_HEIGHT)),
             Anchor::TOP_CENTER,
