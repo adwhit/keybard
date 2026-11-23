@@ -12,6 +12,7 @@ use crate::performance::{Insights, Score, Timing};
 use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
 
+use super::falling::View;
 use super::practice::Practice;
 use super::section::LOOP_BARS;
 use super::songs::SongScoped;
@@ -111,6 +112,7 @@ fn record_finish(
     mut bests: ResMut<Bests>,
     mut unlocked: ResMut<Unlocked>,
     practice: Res<Practice>,
+    view: Res<View>,
     mut was_finished: Local<bool>,
 ) {
     let finished = transport.state == PlayState::Finished;
@@ -136,6 +138,7 @@ fn record_finish(
             streak: practice.streak(),
             minutes_today: practice.minutes_today(),
             songs_with_bests: bests.records.song_count(),
+            sight_reading: *view == View::SightReading,
         };
         let new_achievements = unlocked.achievements.unlock(&run);
         if !new_achievements.is_empty() {

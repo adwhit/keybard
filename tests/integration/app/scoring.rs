@@ -375,7 +375,7 @@ fn f5_shows_the_achievement_gallery() {
     h.tap(KeyCode::F5);
     let (text, shown) = gallery(&mut h);
     assert!(shown);
-    assert!(text.contains("ACHIEVEMENTS 1/12"), "{text}");
+    assert!(text.contains("ACHIEVEMENTS 1/13"), "{text}");
     assert!(text.contains("[x] Unbroken"), "{text}");
     assert!(text.contains("[ ] S Rank"), "{text}");
     assert_eq!(text.lines().count(), 1 + Achievement::ALL.len());
@@ -391,4 +391,24 @@ fn wrong_notes_suggest_the_right_one() {
     assert!(h.texts().contains(&"try E4".to_owned()), "{:?}", h.texts());
     // Two flashes: the wrong key and the wanted one.
     assert!(h.count::<KeyFlash>() >= 2);
+}
+
+#[test]
+fn sight_reading_a_song_well_unlocks_sight_reader() {
+    use keybard::achievements::Achievement;
+    use keybard::app::falling::View;
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    h.tap(KeyCode::F6);
+    assert_eq!(*h.world().resource::<View>(), View::SightReading);
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let unlocked = h.world().resource::<LastResult>().new_achievements.clone();
+    assert!(unlocked.contains(&Achievement::SightReader), "{unlocked:?}");
 }

@@ -20,6 +20,7 @@ pub enum Achievement {
     Streak7,
     Marathon,
     Explorer,
+    SightReader,
 }
 
 /// Everything about a finished run that achievements look at.
@@ -32,10 +33,12 @@ pub struct RunSummary {
     pub streak: u32,
     pub minutes_today: u32,
     pub songs_with_bests: usize,
+    /// Played without falling bars or keyboard cues.
+    pub sight_reading: bool,
 }
 
 impl Achievement {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::FirstClear,
         Self::FullCombo,
         Self::GradeS,
@@ -48,6 +51,7 @@ impl Achievement {
         Self::Streak7,
         Self::Marathon,
         Self::Explorer,
+        Self::SightReader,
     ];
 
     pub fn title(self) -> &'static str {
@@ -64,6 +68,7 @@ impl Achievement {
             Self::Streak7 => "Week Warrior",
             Self::Marathon => "Marathon",
             Self::Explorer => "Explorer",
+            Self::SightReader => "Sight Reader",
         }
     }
 
@@ -81,6 +86,7 @@ impl Achievement {
             Self::Streak7 => "Practise seven days in a row",
             Self::Marathon => "Practise 30 minutes in a day",
             Self::Explorer => "Set personal bests on three songs",
+            Self::SightReader => "Sight-read a song with an A or better",
         }
     }
 
@@ -98,6 +104,7 @@ impl Achievement {
             Self::Streak7 => "streak-7",
             Self::Marathon => "marathon",
             Self::Explorer => "explorer",
+            Self::SightReader => "sight-reader",
         }
     }
 
@@ -117,6 +124,7 @@ impl Achievement {
             Self::Streak7 => run.streak >= 7,
             Self::Marathon => run.minutes_today >= 30,
             Self::Explorer => run.songs_with_bests >= 3,
+            Self::SightReader => run.sight_reading && grade.is_some_and(|g| g <= Grade::A),
         }
     }
 

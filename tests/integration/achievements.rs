@@ -10,6 +10,7 @@ fn run(score: Score) -> RunSummary {
         streak: 1,
         minutes_today: 5,
         songs_with_bests: 1,
+        sight_reading: false,
     }
 }
 
@@ -103,4 +104,21 @@ fn every_achievement_has_a_title_and_description() {
         assert!(!a.title().is_empty() && a.title().is_ascii());
         assert!(!a.description().is_empty());
     });
+}
+
+#[test]
+fn sight_reading_well_earns_its_own_achievement() {
+    let mut summary = run(perfect(10));
+    assert!(!Achievement::earned_by(&summary).contains(&Achievement::SightReader));
+    summary.sight_reading = true;
+    assert!(Achievement::earned_by(&summary).contains(&Achievement::SightReader));
+    // Not for a scrappy run.
+    let scrappy = Score {
+        good: 5,
+        missed: 5,
+        ..Score::default()
+    };
+    let mut poor = run(scrappy);
+    poor.sight_reading = true;
+    assert!(!Achievement::earned_by(&poor).contains(&Achievement::SightReader));
 }

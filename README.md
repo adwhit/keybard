@@ -137,12 +137,12 @@ Reading ahead: your bars brighten over their last half-second of fall, and a
 key takes on a pale tint of your hand's colour just before one of your notes
 reaches it, so your eyes can move to the keyboard early.
 
-Achievements: twelve goals unlock as you play. They include a first clear, a
+Achievements: thirteen goals unlock as you play. They include a first clear, a
 full combo, an S grade, 50 and 100 combos, 99% accuracy, a both-hands full
 combo, beating a song above full speed, 3- and 7-day streaks, a 30-minute day
-and bests on three songs. New ones are announced on the results card with a
+bests on three songs, and sight-reading a song with an A or better. New ones are announced on the results card with a
 running count, and they're saved beside your bests (`achievements.txt`). F5
-opens a gallery of all twelve, ticked off as you earn them.
+opens a gallery of all thirteen, ticked off as you earn them.
 
 Practice habit: time spent playing (wall-clock, so slowed practice counts in
 full) is logged per day next to your bests (`practice.tsv`). At least a minute
