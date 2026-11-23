@@ -37,6 +37,10 @@ impl Finger {
         Self::Pinky,
     ];
 
+    pub fn from_number(number: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|f| f.number() == number)
+    }
+
     /// Conventional piano finger number, 1 (thumb) to 5 (pinky).
     pub fn number(self) -> u8 {
         match self {
@@ -198,8 +202,26 @@ fn groups_for(notes: &[Note], hand: Hand) -> Vec<Group> {
             // the rest reuse the nearest finger.
             indices.truncate(Finger::ALL.len());
             let keys: Vec<Key> = indices.iter().map(|i| Key::new(&notes[*i])).collect();
+            // Fingers written into the score rule out every other option.
+            let pinned: Vec<Option<Finger>> = indices.iter().map(|i| notes[*i].finger).collect();
+            let all = assignments(keys.len());
+            let respecting: Vec<Vec<Finger>> = all
+                .iter()
+                .filter(|option| {
+                    option
+                        .iter()
+                        .zip(&pinned)
+                        .all(|(f, pin)| pin.is_none_or(|p| p == *f))
+                })
+                .cloned()
+                .collect();
             Group {
-                options: assignments(keys.len()),
+                // Contradictory pins (e.g. out of order) fall back to free choice.
+                options: if respecting.is_empty() {
+                    all
+                } else {
+                    respecting
+                },
                 notes: indices,
                 keys,
             }

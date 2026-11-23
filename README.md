@@ -85,6 +85,9 @@ thumbs and pinkies kept off black keys. It reproduces textbook fingerings
 such as the C major scale (1 2 3 1 2 3 4 5), Ode to Joy in C position and
 the Minuet in G opening, and it works on any MIDI file.
 
+Scores can pin a finger with `@`, e.g. `E4@3/2` or `C4@1+E4+G4@5`. The
+optimiser keeps pinned notes fixed and plans the fingering around them.
+
 The finger shows as a bold digit on each bar (F1 cycles labels: fingers and
 names, fingers, names, off), beside each notehead in the notation, and as a
 large digit on a key while its note is about to land or is sounding.

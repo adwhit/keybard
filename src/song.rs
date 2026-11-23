@@ -44,6 +44,8 @@ pub struct Note {
     pub start: Seconds,
     pub duration: Seconds,
     pub hand: Hand,
+    /// A finger written into the score, which the fingering respects.
+    pub finger: Option<Finger>,
 }
 
 impl Note {
@@ -191,8 +193,23 @@ pub fn parse_pitch(token: &str) -> Result<MidiNote, Error> {
 
 /// One event of a voice: a chord (possibly a single note) or a rest.
 enum VoiceEvent {
-    Chord(Vec<MidiNote>, Beats),
+    Chord(Vec<(MidiNote, Option<Finger>)>, Beats),
     Rest(Beats),
+}
+
+/// `E4` or `E4@3` (finger 1-5).
+fn parse_fingered_pitch(token: &str) -> Result<(MidiNote, Option<Finger>), Error> {
+    match token.split_once('@') {
+        None => parse_pitch(token).map(|p| (p, None)),
+        Some((pitch, finger)) => {
+            let finger = finger
+                .parse::<u8>()
+                .ok()
+                .and_then(Finger::from_number)
+                .ok_or_else(|| Error::InvalidNoteToken(token.to_owned()))?;
+            parse_pitch(pitch).map(|p| (p, Some(finger)))
+        }
+    }
 }
 
 fn parse_event(token: &str) -> Result<VoiceEvent, Error> {
@@ -211,7 +228,7 @@ fn parse_event(token: &str) -> Result<VoiceEvent, Error> {
     }
     pitches
         .split('+')
-        .map(parse_pitch)
+        .map(parse_fingered_pitch)
         .collect::<Result<Vec<_>, _>>()
         .map(|chord| VoiceEvent::Chord(chord, beats))
 }
@@ -219,6 +236,7 @@ fn parse_event(token: &str) -> Result<VoiceEvent, Error> {
 /// Parse a whitespace-separated voice like `C4 E4/0.5 C4+E4+G4/2 R/1 |`.
 ///
 /// Each token is `pitch[+pitch...][/beats]` or `R[/beats]`; beats default to 1.
+/// A pitch may carry a fingering as `E4@3`.
 /// `|` bar lines are ignored and are only there for readability.
 pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Error> {
     let events = text
@@ -231,11 +249,12 @@ pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Er
         |(mut notes, cursor), event| match event {
             VoiceEvent::Rest(beats) => (notes, Beats(cursor.0 + beats.0)),
             VoiceEvent::Chord(chord, beats) => {
-                notes.extend(chord.into_iter().map(|pitch| Note {
+                notes.extend(chord.into_iter().map(|(pitch, finger)| Note {
                     pitch,
                     start: tempo.to_seconds(cursor),
                     duration: tempo.to_seconds(beats),
                     hand,
+                    finger,
                 }));
                 (notes, Beats(cursor.0 + beats.0))
             }

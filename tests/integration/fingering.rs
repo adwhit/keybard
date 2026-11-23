@@ -79,3 +79,28 @@ fn finger_numbers_round_trip() {
     assert_eq!(Finger::Pinky.number(), 5);
     assert_eq!(Finger::ALL.len(), 5);
 }
+
+#[test]
+fn annotations_pin_fingers_and_the_rest_adapts() {
+    // Unannotated, C D E F G takes 1-2-3-4-5. Pin E to 1 and the hand must
+    // shift: the notes after it follow on from the thumb.
+    let pinned = fingers("C4 D4 E4@1 F4 G4", Hand::Right);
+    assert_eq!(pinned[2], 1, "the pin holds");
+    assert_eq!(pinned[3..], [2, 3], "the hand carries on from the thumb");
+    // ...and the thumb passes under from the middle finger, the classic pivot.
+    assert_eq!(pinned[..2], [2, 3]);
+    // Chord members can be pinned individually.
+    assert_eq!(fingers("C4@1+E4@2+G4", Hand::Right)[..2], [1, 2]);
+}
+
+#[test]
+fn annotations_parse_with_durations_and_reject_bad_fingers() {
+    use keybard::song::parse_voice;
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let notes = parse_voice("E4@3/2 C4", Hand::Right, tempo).unwrap();
+    assert_eq!(notes[0].finger, Some(Finger::Middle));
+    assert!((notes[0].duration.0 - 2.0).abs() < 1e-6);
+    assert_eq!(notes[1].finger, None);
+    assert!(parse_voice("E4@6", Hand::Right, tempo).is_err());
+    assert!(parse_voice("E4@x", Hand::Right, tempo).is_err());
+}

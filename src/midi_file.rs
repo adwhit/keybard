@@ -236,6 +236,7 @@ pub fn parse(title: &str, bytes: &[u8]) -> Result<Song, Error> {
                 start,
                 duration: tempo_map.to_seconds(n.end) - start,
                 hand: hand_of(n),
+                finger: None,
             }
         })
         .collect();

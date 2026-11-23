@@ -61,6 +61,7 @@ fn songs_sort_notes_and_report_extent() {
         start: Seconds(start),
         duration: Seconds(duration),
         hand: Hand::Right,
+        finger: None,
     };
     let song = Song::new(
         "t",
