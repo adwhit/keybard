@@ -3,7 +3,7 @@
 
 mod score;
 
-pub use score::{Grade, HIT_WINDOW, Score, Timing};
+pub use score::{Grade, HIT_WINDOW, Heat, Score, Timing};
 
 use crate::music::MidiNote;
 use crate::song::{Hand, NoteId, Seconds, Song};

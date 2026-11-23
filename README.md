@@ -84,7 +84,9 @@ Headless and snapshot runs never touch your bests.
 
 Feedback while playing: particle bursts and key flashes on hits, floating
 PERFECT/GREAT/GOOD/MISS text, a combo counter that brightens as the multiplier
-climbs, combo milestones, an early/late readout in ms, and a progress strip
+climbs, combo milestones, streak heat (the backdrop warms from violet through
+amber to orange as the multiplier climbs, "ON FIRE!" with drifting embers at
+x4, and "STREAK LOST" when you break it), an early/late readout in ms, and a progress strip
 that records every judgement as a coloured tick.
 
 ### Controls

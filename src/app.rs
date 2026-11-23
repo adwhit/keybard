@@ -11,6 +11,7 @@ mod audio;
 mod autopilot;
 pub mod effects;
 pub mod falling;
+pub mod heat;
 pub mod hud;
 pub mod input;
 pub mod notation;
@@ -230,6 +231,7 @@ pub fn build(options: Options) -> App {
             notation::plugin,
             hud::plugin,
             section::plugin,
+            heat::plugin,
         ));
     if options.player == Player::Autopilot {
         app.add_plugins(autopilot::plugin);

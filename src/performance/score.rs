@@ -87,6 +87,27 @@ impl Grade {
     }
 }
 
+/// How hot the current streak is, one step per multiplier level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Heat {
+    Cold,
+    Warm,
+    Hot,
+    OnFire,
+}
+
+impl Heat {
+    /// 0 (cold) to 1 (on fire), for blending visuals.
+    pub fn intensity(self) -> f32 {
+        match self {
+            Self::Cold => 0.0,
+            Self::Warm => 1.0 / 3.0,
+            Self::Hot => 2.0 / 3.0,
+            Self::OnFire => 1.0,
+        }
+    }
+}
+
 /// Every this many combo, the multiplier goes up by one.
 const COMBO_PER_MULTIPLIER: u32 = 10;
 const MAX_MULTIPLIER: u32 = 4;
@@ -107,6 +128,15 @@ pub struct Score {
 impl Score {
     pub fn multiplier(&self) -> u32 {
         (1 + self.combo / COMBO_PER_MULTIPLIER).min(MAX_MULTIPLIER)
+    }
+
+    pub fn heat(&self) -> Heat {
+        match self.multiplier() {
+            0 | 1 => Heat::Cold,
+            2 => Heat::Warm,
+            3 => Heat::Hot,
+            _ => Heat::OnFire,
+        }
     }
 
     pub fn hits(&self) -> usize {

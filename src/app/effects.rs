@@ -19,7 +19,7 @@ pub struct Ephemeral {
 }
 
 impl Ephemeral {
-    fn new(lifetime: f32) -> Self {
+    pub(super) fn new(lifetime: f32) -> Self {
         Self { age: 0.0, lifetime }
     }
 
@@ -33,6 +33,15 @@ impl Ephemeral {
 pub struct Particle {
     velocity: Vec2,
     base_alpha: f32,
+}
+
+impl Particle {
+    pub(super) fn new(velocity: Vec2, base_alpha: f32) -> Self {
+        Self {
+            velocity,
+            base_alpha,
+        }
+    }
 }
 
 /// Floating text such as "PERFECT".
@@ -67,7 +76,7 @@ impl Rng {
 }
 
 const GRAVITY: f32 = -700.0;
-const PARTICLE_Z: f32 = 4.0;
+pub(super) const PARTICLE_Z: f32 = 4.0;
 const FLASH_Z: f32 = 12.0;
 const POPUP_Z: f32 = 13.0;
 const MILESTONES: [u32; 6] = [25, 50, 100, 200, 300, 500];
@@ -204,7 +213,14 @@ fn flash(commands: &mut Commands, textures: &Textures, x: f32, width: f32, color
     ));
 }
 
-fn popup(commands: &mut Commands, label: &str, color: Color, at: Vec2, size: f32, scale: f32) {
+pub(super) fn popup(
+    commands: &mut Commands,
+    label: &str,
+    color: Color,
+    at: Vec2,
+    size: f32,
+    scale: f32,
+) {
     commands.spawn((
         Popup {
             rise: 46.0,

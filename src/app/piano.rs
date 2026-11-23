@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::heat::HeatGlow;
 use super::input::HeldKeys;
 use super::textures::Textures;
 use super::transport::Transport;
@@ -166,9 +167,13 @@ fn pulse_hit_line(
     mut line: Single<&mut Sprite, With<HitLine>>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
+    glow: Res<HeatGlow>,
 ) {
     let beat = transport.time.0 / song.0.tempo.seconds_per_beat.0;
     let phase = beat.rem_euclid(1.0);
-    let strength = 0.25 + 0.25 * (1.0 - phase).powi(3);
-    line.color = line.color.with_alpha(strength);
+    // Pulses harder and burns hotter as the streak heats up.
+    let strength = (0.25 + 0.25 * glow.0) + (0.25 + 0.3 * glow.0) * (1.0 - phase).powi(3);
+    line.color = palette::HIT_LINE
+        .mix(&palette::FIRE, glow.0)
+        .with_alpha(strength);
 }

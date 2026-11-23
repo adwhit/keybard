@@ -281,3 +281,24 @@ fn listen_mode_plays_everything_whatever_the_hands() {
     let a = perf.advance(&song, PlayMode::Listen, Seconds(-1.0), Seconds(3.0));
     assert_eq!(a.auto_played.len(), 4);
 }
+
+#[test]
+fn heat_follows_the_multiplier() {
+    use keybard::performance::Heat;
+    let heat = |combo| {
+        Score {
+            combo,
+            ..Score::default()
+        }
+        .heat()
+    };
+    assert_eq!(heat(0), Heat::Cold);
+    assert_eq!(heat(9), Heat::Cold);
+    assert_eq!(heat(10), Heat::Warm);
+    assert_eq!(heat(20), Heat::Hot);
+    assert_eq!(heat(30), Heat::OnFire);
+    assert_eq!(heat(300), Heat::OnFire);
+    assert!(Heat::Cold < Heat::Warm && Heat::Hot < Heat::OnFire);
+    assert_eq!(Heat::Cold.intensity(), 0.0);
+    assert_eq!(Heat::OnFire.intensity(), 1.0);
+}

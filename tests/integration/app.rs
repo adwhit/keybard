@@ -699,3 +699,36 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
     assert!(h.time() < region.start, "begins with a lead-in");
     assert!(region.start.0 - h.time().0 >= bar.0 - 0.05);
 }
+
+#[test]
+fn a_hot_streak_sets_the_screen_on_fire_and_breaking_it_cools_down() {
+    use keybard::app::heat::{Ember, HeatGlow};
+    use keybard::performance::Heat;
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(10), Hand::Right, tempo).unwrap();
+    let song = Song::new("streak", tempo, notes).unwrap();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+
+    let mut saw_on_fire_banner = false;
+    while h.score().heat() != Heat::OnFire {
+        h.app.update();
+        assert!(h.time().0 < 30.0, "never got hot");
+    }
+    // Let the glow catch up and the embers start.
+    (0..60).for_each(|_| {
+        h.app.update();
+        saw_on_fire_banner |= h.texts().contains(&"ON FIRE!".to_owned());
+    });
+    assert!(saw_on_fire_banner);
+    assert!(h.world().resource::<HeatGlow>().0 > 0.9);
+    assert!(h.count::<Ember>() > 10, "embers drift up");
+
+    // A wrong note breaks the streak.
+    h.midi(30, KeyEdge::Down);
+    assert_eq!(h.score().heat(), Heat::Cold);
+    assert!(h.texts().contains(&"STREAK LOST".to_owned()));
+    h.tap(KeyCode::Space); // pause so the autopilot can't rebuild it
+    h.frames(90);
+    assert!(h.world().resource::<HeatGlow>().0 < 0.1, "cools down");
+    assert_eq!(h.count::<Ember>(), 0);
+}

@@ -14,6 +14,10 @@ use crate::song::{NoteId, Seconds};
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FallingBar(pub NoteId);
 
+/// The glow behind the falling bars.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Backdrop;
+
 /// The note-name label on a bar.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct BarLabel;
@@ -81,8 +85,9 @@ fn spawn_backdrop(mut commands: Commands, keys: Res<Keys>, textures: Res<Texture
         Anchor::BOTTOM_CENTER,
         Transform::from_xyz(0.0, layout::NOTATION_BOTTOM, PANEL_Z),
     ));
-    // A soft glow rising from the keyboard.
+    // A soft glow rising from the keyboard; its colour tracks the streak.
     commands.spawn((
+        Backdrop,
         Sprite {
             image: textures.fade_up.clone(),
             color: palette::BACKDROP_GLOW,

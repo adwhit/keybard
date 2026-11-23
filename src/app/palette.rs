@@ -6,6 +6,9 @@ use crate::song::Hand;
 pub const BACKGROUND: Color = Color::srgb(0.055, 0.055, 0.075);
 /// Top of the falling area's backdrop gradient.
 pub const BACKDROP_GLOW: Color = Color::srgba(0.25, 0.22, 0.45, 0.35);
+/// What the backdrop glow becomes at the top of a streak.
+pub const BACKDROP_FIRE: Color = Color::srgba(0.85, 0.35, 0.10, 0.55);
+pub const FIRE: Color = Color::srgb(1.0, 0.55, 0.12);
 /// Darker lanes under the black keys.
 pub const BLACK_LANE: Color = Color::srgba(0.0, 0.0, 0.0, 0.28);
 pub const PAPER: Color = Color::srgb(0.96, 0.94, 0.88);
