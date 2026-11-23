@@ -1237,3 +1237,65 @@ fn the_hud_says_when_midi_is_off() {
         "MIDI: Yamaha P-125"
     );
 }
+
+#[test]
+fn finishing_well_unlocks_achievements_once() {
+    use keybard::achievements::Achievement;
+    use keybard::app::results::Unlocked;
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let first = h.world().resource::<LastResult>().new_achievements.clone();
+    assert!(first.contains(&Achievement::FirstClear), "{first:?}");
+    assert!(first.contains(&Achievement::FullCombo), "{first:?}");
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(
+        texts.iter().any(|t| t.starts_with("UNLOCKED  Unbroken")),
+        "{texts:?}"
+    );
+
+    h.tap(KeyCode::Space);
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert!(
+        h.world()
+            .resource::<LastResult>()
+            .new_achievements
+            .is_empty(),
+        "nothing new the second time"
+    );
+    assert_eq!(
+        h.world().resource::<Unlocked>().achievements.count(),
+        first.len()
+    );
+}
+
+#[test]
+fn achievements_are_saved_next_to_the_bests() {
+    let dir = tempfile::tempdir().unwrap();
+    let bests = dir.path().join("bests.tsv");
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Wait,
+        Player::Autopilot,
+        RecordStore::File(bests),
+    );
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let saved = std::fs::read_to_string(dir.path().join("achievements.txt")).unwrap();
+    assert!(saved.contains("first-clear"), "{saved}");
+}

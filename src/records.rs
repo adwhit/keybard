@@ -97,6 +97,15 @@ pub fn default_path() -> Option<PathBuf> {
 }
 
 impl Records {
+    /// How many different songs have a best in any mode.
+    pub fn song_count(&self) -> usize {
+        self.bests
+            .keys()
+            .map(|k| k.title.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    }
+
     pub fn best(&self, key: &RecordKey) -> Option<Best> {
         self.bests.get(key).copied()
     }

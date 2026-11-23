@@ -7,6 +7,7 @@ use tracing::{info, warn};
 
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Judge, Phase, palette};
+use crate::achievements::{Achievement, Achievements, RunSummary};
 use crate::performance::{Insights, Score, Timing};
 use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
@@ -30,6 +31,13 @@ pub struct Bests {
     pub records: Records,
 }
 
+/// Unlocked achievements and where they're kept.
+#[derive(Resource, Debug)]
+pub struct Unlocked {
+    store: RecordStore,
+    pub achievements: Achievements,
+}
+
 /// The outcome of the last finished, scored run.
 #[derive(Resource, Debug, Clone, PartialEq)]
 pub struct LastResult {
@@ -40,6 +48,7 @@ pub struct LastResult {
     /// 1-based first bar of the weakest stretch worth drilling.
     pub weakest: Option<u32>,
     pub insights: Insights,
+    pub new_achievements: Vec<Achievement>,
 }
 
 /// One cell of the per-bar accuracy strip on the results card.
@@ -58,7 +67,23 @@ pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
             }),
             RecordStore::Memory => Records::default(),
         };
-        app.insert_resource(Bests {
+        // Achievements live next to the bests.
+        let achievement_store = match &store {
+            RecordStore::File(path) => RecordStore::File(path.with_file_name("achievements.txt")),
+            RecordStore::Memory => RecordStore::Memory,
+        };
+        let achievements = match &achievement_store {
+            RecordStore::File(path) => Achievements::load(path).unwrap_or_else(|err| {
+                warn!(%err, "could not load achievements; starting fresh");
+                Achievements::default()
+            }),
+            RecordStore::Memory => Achievements::default(),
+        };
+        app.insert_resource(Unlocked {
+            store: achievement_store,
+            achievements,
+        })
+        .insert_resource(Bests {
             store: store.clone(),
             records,
         })
@@ -69,12 +94,15 @@ pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
     }
 }
 
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 fn record_finish(
     mut commands: Commands,
     transport: Res<Transport>,
     judge: Res<Judge>,
     song: Res<ActiveSong>,
     mut bests: ResMut<Bests>,
+    mut unlocked: ResMut<Unlocked>,
+    practice: Res<Practice>,
     mut was_finished: Local<bool>,
 ) {
     let finished = transport.state == PlayState::Finished;
@@ -92,6 +120,24 @@ fn record_finish(
         {
             warn!(%err, "could not save personal bests");
         }
+        let run = RunSummary {
+            score: score.clone(),
+            mode: transport.mode,
+            hands: judge.0.hands(),
+            speed: transport.speed.get(),
+            streak: practice.streak(),
+            minutes_today: practice.minutes_today(),
+            songs_with_bests: bests.records.song_count(),
+        };
+        let new_achievements = unlocked.achievements.unlock(&run);
+        if !new_achievements.is_empty() {
+            info!(?new_achievements, "achievements unlocked");
+            if let RecordStore::File(path) = &unlocked.store
+                && let Err(err) = unlocked.achievements.save(path)
+            {
+                warn!(%err, "could not save achievements");
+            }
+        }
         let bars = judge.0.bar_accuracy(&song.0);
         let weakest = weakest_section(&bars, usize::from(LOOP_BARS)).map(|i| i as u32 + 1);
         commands.insert_resource(LastResult {
@@ -100,6 +146,7 @@ fn record_finish(
             bars,
             weakest,
             insights: judge.0.insights(&song.0),
+            new_achievements,
         });
     }
     if !finished {
@@ -114,6 +161,7 @@ fn show_card(
     cards: Query<Entity, With<ResultsCard>>,
     transport: Res<Transport>,
     practice: Res<Practice>,
+    unlocked: Res<Unlocked>,
 ) {
     let Some(result) = result else {
         cards.iter().for_each(|e| commands.entity(e).despawn());
@@ -121,7 +169,7 @@ fn show_card(
     };
     if result.is_added() && transport.state == PlayState::Finished {
         cards.iter().for_each(|e| commands.entity(e).despawn());
-        spawn_card(&mut commands, &result, &practice);
+        spawn_card(&mut commands, &result, &practice, &unlocked);
     }
 }
 
@@ -136,7 +184,12 @@ fn text(value: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     )
 }
 
-fn spawn_card(commands: &mut Commands, result: &LastResult, practice: &Practice) {
+fn spawn_card(
+    commands: &mut Commands,
+    result: &LastResult,
+    practice: &Practice,
+    unlocked: &Unlocked,
+) {
     let score = &result.score;
     let grade = score.grade();
     let (grade_label, grade_color) =
@@ -176,7 +229,8 @@ fn spawn_card(commands: &mut Commands, result: &LastResult, practice: &Practice)
                 position_type: PositionType::Absolute,
                 left: Val::Percent(25.0),
                 right: Val::Percent(25.0),
-                top: Val::Percent(30.0),
+                // Near the top: the notation above is empty once the song ends.
+                top: Val::Percent(3.0),
                 padding: UiRect::all(Val::Px(16.0)),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
@@ -184,7 +238,7 @@ fn spawn_card(commands: &mut Commands, result: &LastResult, practice: &Practice)
                 border: UiRect::all(Val::Px(2.0)),
                 ..default()
             },
-            BackgroundColor(palette::BACKGROUND.with_alpha(0.92)),
+            BackgroundColor(palette::BACKGROUND.with_alpha(0.98)),
             BorderColor::all(grade_color),
             GlobalZIndex(10),
         ))
@@ -235,12 +289,28 @@ fn spawn_card(commands: &mut Commands, result: &LastResult, practice: &Practice)
             });
             card.spawn(text(
                 format!(
-                    "{}-day streak | {} min practised today",
-                    practice.streak(),
+                    "{} | {} min practised today",
+                    practice.streak_label(),
                     practice.minutes_today()
                 ),
                 13.0,
                 palette::FIRE,
+            ));
+            result.new_achievements.iter().for_each(|a| {
+                card.spawn(text(
+                    format!("UNLOCKED  {}  -  {}", a.title(), a.description()),
+                    14.0,
+                    palette::timing(Timing::Perfect),
+                ));
+            });
+            card.spawn(text(
+                format!(
+                    "Achievements {}/{}",
+                    unlocked.achievements.count(),
+                    Achievement::ALL.len()
+                ),
+                12.0,
+                palette::HUD_DIM,
             ));
             card.spawn(text(
                 "Space to play again | Tab to change mode | Esc to quit",

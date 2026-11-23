@@ -123,6 +123,12 @@ Reading ahead: your bars brighten over their last half-second of fall, and a
 key takes on a pale tint of your hand's colour just before one of your notes
 reaches it, so your eyes can move to the keyboard early.
 
+Achievements: twelve goals unlock as you play. They include a first clear, a
+full combo, an S grade, 50 and 100 combos, 99% accuracy, a both-hands full
+combo, beating a song above full speed, 3- and 7-day streaks, a 30-minute day
+and bests on three songs. New ones are announced on the results card with a
+running count, and they're saved beside your bests (`achievements.txt`).
+
 Practice habit: time spent playing (wall-clock, so slowed practice counts in
 full) is logged per day next to your bests (`practice.tsv`). At least a minute
 on a day extends your day streak. The HUD and results card show the streak and
@@ -199,6 +205,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/achievements.rs`: achievement rules and persistence
 - `src/streak.rs`: per-day practice log and day streaks
 - `src/key.rs`: key-signature inference and pitch spelling
 - `src/notation.rs`: where rests go (gaps split at bar lines into standard values)

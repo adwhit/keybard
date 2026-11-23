@@ -1,5 +1,6 @@
 //! keybard: a falling-notes piano trainer.
 
+pub mod achievements;
 pub mod app;
 pub mod builtin;
 pub mod error;

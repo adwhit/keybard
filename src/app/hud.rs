@@ -190,8 +190,8 @@ fn update_info(
         total = clock(total),
     );
     text.0.push_str(&format!(
-        "\n{streak}-day streak | {minutes} min today | {midi}",
-        streak = practice.streak(),
+        "\n{streak} | {minutes} min today | {midi}",
+        streak = practice.streak_label(),
         minutes = practice.minutes_today(),
         midi = midi.label()
     ));

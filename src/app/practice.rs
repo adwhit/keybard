@@ -26,6 +26,14 @@ impl Practice {
         self.log.streak(self.today)
     }
 
+    /// "3-day streak", or "No streak yet".
+    pub fn streak_label(&self) -> String {
+        match self.streak() {
+            0 => "No streak yet".to_owned(),
+            n => format!("{n}-day streak"),
+        }
+    }
+
     pub fn minutes_today(&self) -> u32 {
         (self.log.on(self.today).0 / 60.0) as u32
     }

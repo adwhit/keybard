@@ -1,6 +1,7 @@
 //! All integration tests live in one binary: each Bevy-linked test binary is
 //! ~100MB, so separate binaries cost seconds of linking and loading apiece.
 
+mod achievements;
 mod app;
 mod fingering;
 mod key;
