@@ -343,6 +343,30 @@ fn bars_brighten_as_they_approach() {
 }
 
 #[test]
+fn bars_are_shaded_by_their_dynamics() {
+    // Quiet, medium and loud notes, a quarter-second apart.
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice("!pp C4 !mf D4 !ff E4", Hand::Right, tempo).unwrap();
+    let mut h = Harness::new(
+        Song::new("dynamics", tempo, notes).unwrap(),
+        PlayMode::Listen,
+    );
+    // All three are on screen but not yet close enough to start glowing.
+    h.run_until(-1.0);
+    let mut q = h.world().query::<(&FallingBar, &Sprite)>();
+    let mut shades: Vec<(usize, f32)> = q
+        .iter(h.app.world())
+        .map(|(b, s)| {
+            let c = s.color.to_srgba();
+            (b.0.0, c.red + c.green + c.blue)
+        })
+        .collect();
+    shades.sort_by_key(|(id, _)| *id);
+    let [pp, mf, ff] = [shades[0].1, shades[1].1, shades[2].1];
+    assert!(pp + 0.1 < mf && mf + 0.05 < ff, "pp {pp}, mf {mf}, ff {ff}");
+}
+
+#[test]
 fn page_down_switches_to_the_next_song_and_rebuilds_everything() {
     use keybard::builtin::BuiltinSong;
     let mut h = playlist_harness(PlayMode::Play);

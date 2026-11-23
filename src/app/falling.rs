@@ -316,10 +316,13 @@ fn move_bars(
             // Bars warm towards their lit colour over the last stretch.
             let approach = 1.0 - ((note.start - now).0 / APPROACH_FADE).clamp(0.0, 1.0);
             let color = match state {
-                BarState::Upcoming => {
-                    palette::hand(note.hand).mix(&palette::hand_lit(note.hand), 0.6 * approach)
+                BarState::Upcoming => palette::by_dynamics(
+                    palette::hand(note.hand).mix(&palette::hand_lit(note.hand), 0.6 * approach),
+                    note.velocity,
+                ),
+                BarState::Sounding => {
+                    palette::by_dynamics(palette::hand_lit(note.hand), note.velocity)
                 }
-                BarState::Sounding => palette::hand_lit(note.hand),
                 BarState::Played => palette::hand_played(note.hand),
                 BarState::Missed => palette::MISSED.darker(0.25),
             };

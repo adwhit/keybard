@@ -1,5 +1,6 @@
-use bevy::prelude::{Color, Mix};
+use bevy::prelude::{Color, Luminance, Mix};
 
+use crate::dynamics::Velocity;
 use crate::music::KeyColor;
 use crate::performance::{Grade, Timing};
 use crate::song::Hand;
@@ -58,6 +59,20 @@ pub fn hand_hint(hand: Hand, key: KeyColor) -> Color {
         KeyColor::Black => BLACK_KEY.mix(&self::hand(hand), 0.55),
     }
 }
+
+/// Shade a bar by how loudly its note is marked: soft notes sink towards
+/// the background, loud ones stand out brighter. Mezzo-forte is unchanged.
+pub fn by_dynamics(color: Color, velocity: Velocity) -> Color {
+    let lean = (f32::from(velocity.value()) - f32::from(Velocity::DEFAULT.value())) / 127.0;
+    if lean >= 0.0 {
+        color.lighter(lean * DYNAMICS_SPREAD)
+    } else {
+        color.darker(-lean * DYNAMICS_SPREAD)
+    }
+}
+
+/// How far loudness moves a bar's shade (per full velocity range).
+const DYNAMICS_SPREAD: f32 = 0.4;
 
 /// Bars that have finished playing.
 pub fn hand_played(hand: Hand) -> Color {

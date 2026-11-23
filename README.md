@@ -87,7 +87,9 @@ Every note keeps how hard it's played (MIDI velocity). Built-in scores mark
 dynamics with `!pp` .. `!ff` tokens: Fur Elise opens pianissimo, and Ode to
 Joy swells to forte in its middle phrase. The synth plays soft notes quieter, your MIDI keyboard's
 velocity is heard too, and the staff marks pp, p, mp, mf, f or ff between the
-staves wherever the bar-by-bar level changes. On a touch-sensitive MIDI
+staves wherever the bar-by-bar level changes. Falling bars are shaded by
+loudness too: soft passages fall in muted tones, loud ones bright. On a
+touch-sensitive MIDI
 keyboard, the results card also scores your expression: how many hits landed
 within one level of the marking, and whether you played mostly too loud or too
 soft ("Dynamics 40% as marked: mostly too loud").
