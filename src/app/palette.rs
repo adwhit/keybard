@@ -24,6 +24,9 @@ pub const HIT_LINE: Color = Color::srgb(1.0, 0.45, 0.30);
 pub const MISSED: Color = Color::srgb(0.85, 0.22, 0.22);
 pub const WHITE_KEY: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const BLACK_KEY: Color = Color::srgb(0.07, 0.07, 0.08);
+/// Hand-position shift markers on bars.
+pub const SHIFT: Color = Color::srgb(1.0, 0.78, 0.25);
+pub const SHIFT_INK: Color = Color::srgb(0.45, 0.25, 0.0);
 pub const PRESSED: Color = Color::srgb(1.0, 0.65, 0.15);
 pub const KEY_LABEL: Color = Color::srgb(0.45, 0.45, 0.50);
 pub const HUD_TEXT: Color = Color::srgb(0.85, 0.85, 0.88);

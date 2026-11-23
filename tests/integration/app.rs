@@ -1042,3 +1042,34 @@ fn switching_songs_mid_performance_is_safe() {
     h.tap(KeyCode::PageDown);
     h.run_until(1.0);
 }
+
+#[test]
+fn bars_mark_where_the_hand_shifts_position() {
+    use keybard::app::falling::ShiftMarker;
+    let tempo = Tempo::from_bpm(120.0, 4);
+    let notes = parse_voice("C4 D4 E4 F4 G4 A4 B4 C5", Hand::Right, tempo).unwrap();
+    let song = Song::new("scale", tempo, notes).unwrap();
+    let shifted = song
+        .iter()
+        .filter(|(id, _)| song.starts_new_position(*id))
+        .count();
+    assert_eq!(shifted, 1);
+    let mut h = Harness::new(song, PlayMode::Listen);
+    assert_eq!(h.count::<ShiftMarker>(), 1);
+    let mut q = h.world().query::<(&FallingBar, &Children)>();
+    let mut markers = h.world().query::<&ShiftMarker>();
+    let marked: Vec<NoteId> = q
+        .iter(h.app.world())
+        .filter(|(_, children)| {
+            children
+                .iter()
+                .any(|c| markers.get(h.app.world(), c).is_ok())
+        })
+        .map(|(bar, _)| bar.0)
+        .collect();
+    assert_eq!(
+        marked,
+        vec![NoteId(3)],
+        "the F, where the thumb passes under"
+    );
+}

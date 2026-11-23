@@ -306,3 +306,27 @@ pub fn assign(notes: &[Note]) -> Vec<Finger> {
     });
     fingers
 }
+
+/// Whether each note starts a new hand position: where the thumb would rest
+/// (the note's position minus its finger's offset) differs from the previous
+/// chord in that hand. The first notes of each hand are the starting
+/// position, not a shift.
+pub fn position_shifts(notes: &[Note], fingers: &[Finger]) -> Vec<bool> {
+    let mut shifts = vec![false; notes.len()];
+    [Hand::Right, Hand::Left].into_iter().for_each(|hand| {
+        groups_for(notes, hand)
+            .iter()
+            .map(|group| {
+                let first = group.notes[0];
+                let thumb = Key::new(&notes[first]).x - (fingers[first].index() - 1);
+                (group, thumb)
+            })
+            .fold(None, |previous: Option<i32>, (group, thumb)| {
+                if previous.is_some_and(|p| p != thumb) {
+                    group.notes.iter().for_each(|i| shifts[*i] = true);
+                }
+                Some(thumb)
+            });
+    });
+    shifts
+}

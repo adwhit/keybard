@@ -92,6 +92,10 @@ The finger shows as a bold digit on each bar (F1 cycles labels: fingers and
 names, fingers, names, off), beside each notehead in the notation, and as a
 large digit on a key while its note is about to land or is sounding.
 
+Where the hand has to move (a thumb-under, a finger crossing over the thumb,
+or a jump to a new five-finger position), the bar gets an amber strip along
+its bottom edge and an amber digit, so you can see shifts coming.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand

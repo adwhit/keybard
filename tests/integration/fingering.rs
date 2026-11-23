@@ -104,3 +104,30 @@ fn annotations_parse_with_durations_and_reject_bad_fingers() {
     assert!(parse_voice("E4@6", Hand::Right, tempo).is_err());
     assert!(parse_voice("E4@x", Hand::Right, tempo).is_err());
 }
+
+fn shifts(voice: &str, hand: Hand) -> Vec<bool> {
+    let tempo = Tempo::from_bpm(120.0, 4);
+    let song = Song::new("s", tempo, parse_voice(voice, hand, tempo).unwrap()).unwrap();
+    song.iter()
+        .map(|(id, _)| song.starts_new_position(id))
+        .collect()
+}
+
+#[test]
+fn shifts_mark_where_the_hand_moves() {
+    // The scale moves once: the thumb passes under onto F.
+    let scale = shifts("C4 D4 E4 F4 G4 A4 B4 C5", Hand::Right);
+    assert_eq!(
+        scale,
+        vec![false, false, false, true, false, false, false, false]
+    );
+    // Ode to Joy stays put in C position.
+    assert!(
+        shifts("E4 E4 F4 G4 G4 F4 E4 D4 C4", Hand::Right)
+            .iter()
+            .all(|s| !s)
+    );
+    // Left hand mirrors.
+    let left = shifts("G3 F3 E3 D3 C3 B2 A2 G2", Hand::Left);
+    assert_eq!(left.iter().filter(|s| **s).count(), 1, "{left:?}");
+}

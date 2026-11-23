@@ -26,6 +26,10 @@ pub struct BarLabel {
     stacked: bool,
 }
 
+/// Marks a bar whose note moves the hand to a new position.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ShiftMarker;
+
 /// The recommended-finger number on a bar.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct BarFinger;
@@ -196,6 +200,19 @@ fn spawn_bars(
             Transform::from_xyz(geometry.center_x, layout::TOP, z),
             Visibility::Hidden,
         ));
+        let shift = song.0.starts_new_position(id);
+        if shift {
+            // A bright strip along the edge you press: "move your hand here".
+            bar.with_child((
+                ShiftMarker,
+                Sprite::from_color(
+                    palette::SHIFT,
+                    Vec2::new(geometry.width - 2.0 * BAR_GAP, 4.0),
+                ),
+                Anchor::BOTTOM_CENTER,
+                Transform::from_xyz(0.0, 0.0, 0.04),
+            ));
+        }
         if height >= MIN_LABELLED_HEIGHT {
             let stacked = height >= MIN_STACKED_HEIGHT;
             bar.with_child((
@@ -205,8 +222,12 @@ fn spawn_bars(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
-                Transform::from_xyz(0.0, 10.0, 0.05),
+                TextColor(if shift {
+                    palette::SHIFT_INK
+                } else {
+                    Color::srgba(0.0, 0.0, 0.0, 0.75)
+                }),
+                Transform::from_xyz(0.0, 12.0, 0.05),
             ));
             bar.with_child((
                 BarLabel { stacked },

@@ -112,6 +112,8 @@ pub struct Song {
     notes: Vec<Note>,
     /// Recommended finger for each note, parallel to `notes`.
     fingers: Vec<Finger>,
+    /// Whether each note moves the hand to a new position.
+    shifts: Vec<bool>,
 }
 
 impl Song {
@@ -125,11 +127,13 @@ impl Song {
         }
         notes.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.pitch.cmp(&b.pitch)));
         let fingers = fingering::assign(&notes);
+        let shifts = fingering::position_shifts(&notes, &fingers);
         Ok(Self {
             title: title.into(),
             tempo,
             notes,
             fingers,
+            shifts,
         })
     }
 
@@ -139,6 +143,11 @@ impl Song {
 
     pub fn note(&self, id: NoteId) -> &Note {
         &self.notes[id.0]
+    }
+
+    /// Whether the hand has to move to a new position for this note.
+    pub fn starts_new_position(&self, id: NoteId) -> bool {
+        self.shifts[id.0]
     }
 
     /// The recommended finger for a note.
