@@ -3,6 +3,7 @@
 pub mod achievements;
 pub mod app;
 pub mod builtin;
+pub mod challenge;
 pub mod chords;
 pub mod error;
 pub mod fingering;

@@ -37,6 +37,10 @@ Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
 works too: with two or more note tracks the first is the right hand, and with a
 single track the split is at middle C.
 
+Every day one song in the playlist is today's challenge (it rotates daily):
+get a B or better on it in Play mode and the results card says "DAILY
+CHALLENGE COMPLETE!". The song list shows which one it is.
+
 PgUp/PgDn switch songs at any time, cycling through every built-in plus the
 MIDI file you opened. During the lead-in and while paused, a song list shows
 each one with your best grade and points for the current mode.
@@ -224,6 +228,7 @@ Layout:
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
 - `src/achievements.rs`: achievement rules and persistence
+- `src/challenge.rs`: the daily challenge
 - `src/streak.rs`: per-day practice log and day streaks
 - `src/chords.rs`: chord naming and the song's chord progression
 - `src/key.rs`: key-signature inference and pitch spelling

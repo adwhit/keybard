@@ -3,6 +3,7 @@
 
 mod achievements;
 mod app;
+mod challenge;
 mod chords;
 mod fingering;
 mod key;

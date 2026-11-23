@@ -15,7 +15,9 @@ use crate::records::{RecordKey, Records, Submission};
 use super::falling::View;
 use super::practice::Practice;
 use super::section::LOOP_BARS;
+use super::songs::Playlist;
 use super::songs::SongScoped;
+use crate::challenge::for_day;
 
 /// Where personal bests live.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +52,8 @@ pub struct LastResult {
     pub weakest: Option<u32>,
     pub insights: Insights,
     pub new_achievements: Vec<Achievement>,
+    /// This run met today's challenge.
+    pub challenge_met: bool,
 }
 
 /// One cell of the per-bar accuracy strip on the results card.
@@ -113,6 +117,7 @@ fn record_finish(
     mut unlocked: ResMut<Unlocked>,
     practice: Res<Practice>,
     view: Res<View>,
+    playlist: Res<Playlist>,
     mut was_finished: Local<bool>,
 ) {
     let finished = transport.state == PlayState::Finished;
@@ -149,6 +154,7 @@ fn record_finish(
                 warn!(%err, "could not save achievements");
             }
         }
+        let score_grade = run.score.grade();
         let bars = judge.0.bar_accuracy(&song.0);
         let weakest = weakest_section(&bars, usize::from(LOOP_BARS)).map(|i| i as u32 + 1);
         commands.insert_resource(LastResult {
@@ -158,6 +164,12 @@ fn record_finish(
             weakest,
             insights: judge.0.insights(&song.0),
             new_achievements,
+            challenge_met: !playlist.entries().is_empty()
+                && for_day(practice.today, playlist.entries().len()).is_met_by(
+                    playlist.current(),
+                    transport.mode,
+                    score_grade,
+                ),
         });
     }
     if !finished {
@@ -305,6 +317,9 @@ fn spawn_card(
         .with_children(|card| {
             card.spawn(text(grade_label, 96.0, grade_color));
             card.spawn(text(full_combo, 18.0, palette::timing(Timing::Perfect)));
+            if result.challenge_met {
+                card.spawn(text("DAILY CHALLENGE COMPLETE!", 18.0, palette::FIRE));
+            }
             card.spawn(text(
                 format!("{:07}", score.points),
                 36.0,

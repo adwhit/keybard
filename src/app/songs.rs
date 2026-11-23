@@ -10,11 +10,13 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use tracing::{info, warn};
 
+use super::practice::Practice;
 use super::results::{Bests, LastResult};
 use super::section::SectionLoop;
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Judge, Keys, Phase, palette};
 use crate::builtin::BuiltinSong;
+use crate::challenge::for_day;
 use crate::error::Error;
 use crate::layout::KeyRange;
 use crate::midi_file;
@@ -199,6 +201,7 @@ fn show_list(
     transport: Res<Transport>,
     judge: Res<Judge>,
     bests: Res<Bests>,
+    practice: Res<Practice>,
 ) {
     let (text, visibility) = &mut *list;
     let wanted = match transport.state {
@@ -211,12 +214,18 @@ fn show_list(
     if wanted == Visibility::Hidden {
         return;
     }
+    let challenge = for_day(practice.today, playlist.entries.len());
     let lines: Vec<String> = titles
         .0
         .iter()
         .enumerate()
         .map(|(i, title)| {
             let marker = if i == playlist.current { ">" } else { " " };
+            let star = if i == challenge.song {
+                "  <- today"
+            } else {
+                ""
+            };
             let best = bests.records.best(&RecordKey {
                 title: title.clone(),
                 mode: transport.mode,
@@ -232,11 +241,16 @@ fn show_list(
                     )
                 },
             );
-            format!("{marker} {title:<36} {score}")
+            format!("{marker} {title:<36} {score}{star}")
         })
         .collect();
+    let today = titles
+        .0
+        .get(challenge.song)
+        .map(|title| challenge.describe(title))
+        .unwrap_or_default();
     text.0 = format!(
-        "SONGS  (PgUp/PgDn)   best in {} mode\n{}",
+        "{today}\nSONGS  (PgUp/PgDn)   best in {} mode\n{}",
         transport.mode.label(),
         lines.join("\n")
     );

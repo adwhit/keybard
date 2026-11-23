@@ -445,3 +445,68 @@ fn imperfect_bars_pass_quietly() {
     }
     assert!(!celebrated);
 }
+
+#[test]
+fn todays_challenge_is_listed_and_completing_it_is_announced() {
+    use keybard::app::practice::Practice;
+    use keybard::app::songs::{Playlist, SongList, SongSource};
+    use keybard::builtin::BuiltinSong;
+    use keybard::challenge::for_day;
+    let songs = [BuiltinSong::Twinkle, BuiltinSong::Scale];
+    let today = keybard::streak::Day::today();
+    let pick = for_day(today, songs.len()).song;
+    let mut h = Harness::build(Options {
+        song: songs[pick].load().unwrap(),
+        mode: PlayMode::Play,
+        midi_input: MidiInput::Disabled,
+        backend: Backend::Headless,
+        logging: Logging::Disabled,
+        player: Player::Autopilot,
+        records: RecordStore::Memory,
+        hands: Hands::Both,
+        loop_from: None,
+        playlist: Playlist::new(
+            songs.iter().map(|b| SongSource::Builtin(*b)).collect(),
+            pick,
+        ),
+        practice_log: RecordStore::Memory,
+        view: Default::default(),
+    });
+    assert_eq!(h.world().resource::<Practice>().today, today);
+    let list = {
+        let mut q = h.world().query_filtered::<&Text, With<SongList>>();
+        q.single(h.app.world()).unwrap().0.clone()
+    };
+    assert!(list.contains("TODAY'S CHALLENGE"), "{list}");
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert!(h.world().resource::<LastResult>().challenge_met);
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(
+        texts.iter().any(|t| t == "DAILY CHALLENGE COMPLETE!"),
+        "{texts:?}"
+    );
+}
+
+#[test]
+fn other_songs_dont_complete_the_challenge() {
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert!(
+        !h.world().resource::<LastResult>().challenge_met,
+        "no playlist, no challenge"
+    );
+}
