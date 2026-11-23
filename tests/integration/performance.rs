@@ -463,8 +463,9 @@ fn perfect_bars_need_every_note_perfect() {
 }
 
 mod expression {
+    use keybard::dynamics::Touch;
     use keybard::dynamics::Velocity;
-    use keybard::performance::{Expression, Insights, Loudness, Performance};
+    use keybard::performance::{Expression, Insights, Performance};
     use keybard::song::Seconds;
 
     use super::{hit, n, song_from};
@@ -490,7 +491,7 @@ mod expression {
             });
         let dynamics = perf.insights(&song).dynamics.expect("touch recorded");
         assert!((dynamics.as_marked - 1.0 / 3.0).abs() < 1e-6);
-        assert_eq!(dynamics.lean, Loudness::Louder);
+        assert_eq!(dynamics.lean, Touch::TooLoud);
     }
 
     #[test]
@@ -505,12 +506,12 @@ mod expression {
             });
         let dynamics = perf.insights(&song).dynamics.unwrap();
         assert_eq!(dynamics.as_marked, 1.0);
-        assert_eq!(dynamics.lean, Loudness::AsMarked);
+        assert_eq!(dynamics.lean, Touch::AsMarked);
     }
 
     #[test]
     fn summaries_say_which_way_to_go() {
-        let line = |as_marked: f32, lean: Loudness| {
+        let line = |as_marked: f32, lean: Touch| {
             Insights {
                 dynamics: Some(Expression { as_marked, lean }),
                 ..Insights::default()
@@ -518,15 +519,15 @@ mod expression {
             .summary()
         };
         assert_eq!(
-            line(0.95, Loudness::AsMarked),
+            line(0.95, Touch::AsMarked),
             vec!["Dynamics 95% as marked".to_owned()]
         );
         assert_eq!(
-            line(0.4, Loudness::Louder),
+            line(0.4, Touch::TooLoud),
             vec!["Dynamics 40% as marked: mostly too loud".to_owned()]
         );
         assert_eq!(
-            line(0.25, Loudness::Softer),
+            line(0.25, Touch::TooSoft),
             vec!["Dynamics 25% as marked: mostly too soft".to_owned()]
         );
     }

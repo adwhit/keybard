@@ -116,3 +116,21 @@ fn ode_to_joy_swells_in_its_middle_phrase() {
         .collect();
     assert_eq!(marks, vec![(1, "mf"), (9, "f"), (13, "mf")]);
 }
+
+#[test]
+fn touch_is_compared_with_the_marking_in_levels() {
+    use keybard::dynamics::{Touch, compare};
+    let v = Velocity::new;
+    let mf = Dynamic::MezzoForte.velocity();
+    assert_eq!(compare(v(80), mf), Touch::AsMarked);
+    // One level either side is close enough.
+    assert_eq!(compare(v(64), mf), Touch::AsMarked);
+    assert_eq!(compare(v(100), mf), Touch::AsMarked);
+    assert_eq!(compare(v(120), mf), Touch::TooLoud);
+    assert_eq!(compare(v(40), mf), Touch::TooSoft);
+    assert_eq!(compare(v(20), Dynamic::Piano.velocity()), Touch::AsMarked);
+    assert_eq!(
+        compare(v(90), Dynamic::Pianissimo.velocity()),
+        Touch::TooLoud
+    );
+}

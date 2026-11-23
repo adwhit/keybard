@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 use super::audio::PlayTone;
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, MidiInput, Phase};
-use crate::dynamics::Velocity;
+use crate::dynamics::{self, Touch, Velocity};
 use crate::midi_port::{PortAction, PortChoice, next_action};
 use crate::music::MidiNote;
 use crate::performance::PressOutcome;
@@ -229,6 +229,16 @@ fn judge_presses(
                 // Only a MIDI keyboard knows how hard the key went down.
                 if let (PressOutcome::Hit(judgement), InputSource::Midi) = (outcome, input.source) {
                     judge.0.touch(judgement.note, input.velocity);
+                    let marked = song.0.note(judgement.note).velocity;
+                    match dynamics::compare(input.velocity, marked) {
+                        Touch::AsMarked => {}
+                        touch => {
+                            feedback.write(Feedback::Touch {
+                                note: judgement.note,
+                                touch,
+                            });
+                        }
+                    }
                 }
                 feedback.write(match outcome {
                     PressOutcome::Hit(judgement) => Feedback::Hit(judgement),

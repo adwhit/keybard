@@ -83,6 +83,31 @@ impl Dynamic {
     }
 }
 
+/// How a played note's loudness compares with its marking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Touch {
+    TooSoft,
+    AsMarked,
+    TooLoud,
+}
+
+/// Levels (pp..ff steps) a note may stray from its marking and still count.
+pub const TOUCH_TOLERANCE: i32 = 1;
+
+/// Signed number of dynamic levels from `marked` up to `played`.
+pub fn level_steps(played: Velocity, marked: Velocity) -> i32 {
+    Dynamic::from_velocity(played) as i32 - Dynamic::from_velocity(marked) as i32
+}
+
+/// Whether `played` is within [`TOUCH_TOLERANCE`] levels of `marked`.
+pub fn compare(played: Velocity, marked: Velocity) -> Touch {
+    match level_steps(played, marked) {
+        s if s > TOUCH_TOLERANCE => Touch::TooLoud,
+        s if s < -TOUCH_TOLERANCE => Touch::TooSoft,
+        _ => Touch::AsMarked,
+    }
+}
+
 /// Dynamic markings at the start of each bar whose (duration-weighted)
 /// average level differs from the last marking.
 pub fn markings(song: &Song) -> Vec<(Seconds, Dynamic)> {

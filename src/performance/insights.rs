@@ -2,6 +2,7 @@
 //! tendency, the notes missed most and, with a touch-sensitive keyboard,
 //! how well loudness follows the dynamics.
 
+use crate::dynamics::Touch;
 use crate::music::MidiNote;
 use crate::song::Seconds;
 
@@ -17,20 +18,13 @@ pub enum Tendency {
     Late,
 }
 
-/// Which way played loudness strays from the marked dynamics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Loudness {
-    Softer,
-    AsMarked,
-    Louder,
-}
-
 /// How closely touch-sensitive hits followed the marked dynamics.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Expression {
     /// Fraction of hits within one dynamic level of the marking.
     pub as_marked: f32,
-    pub lean: Loudness,
+    /// Which way the average strays from the markings.
+    pub lean: Touch,
 }
 
 /// Average levels (pp..ff steps) beyond this count as a lean.
@@ -78,9 +72,9 @@ impl Insights {
         let dynamics = self.dynamics.map(|e| {
             let marked = format!("Dynamics {} as marked", percent(e.as_marked));
             match e.lean {
-                Loudness::AsMarked => marked,
-                Loudness::Louder => format!("{marked}: mostly too loud"),
-                Loudness::Softer => format!("{marked}: mostly too soft"),
+                Touch::AsMarked => marked,
+                Touch::TooLoud => format!("{marked}: mostly too loud"),
+                Touch::TooSoft => format!("{marked}: mostly too soft"),
             }
         });
         [

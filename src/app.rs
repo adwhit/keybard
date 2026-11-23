@@ -45,6 +45,7 @@ pub use autopilot::jitter as autopilot_jitter;
 pub use results::RecordStore;
 pub use snapshot::SnapshotPlan;
 
+use crate::dynamics::Touch;
 use crate::layout::{self, KeyRange};
 use crate::midi_port::PortChoice;
 use crate::music::MidiNote;
@@ -68,6 +69,11 @@ pub enum Feedback {
     /// Played by the computer (Listen mode).
     AutoPlayed(NoteId),
     Missed(NoteId),
+    /// A MIDI hit played well away from its marked dynamic.
+    Touch {
+        note: NoteId,
+        touch: Touch,
+    },
     /// A press that matched no note.
     Wrong {
         pressed: MidiNote,

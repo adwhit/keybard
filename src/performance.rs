@@ -4,10 +4,10 @@
 mod insights;
 mod score;
 
-pub use insights::{Expression, Insights, LOUDNESS_LEAN, Loudness, MOST_MISSED, Tendency};
+pub use insights::{Expression, Insights, LOUDNESS_LEAN, MOST_MISSED, Tendency};
 pub use score::{Grade, HIT_WINDOW, Heat, Score, Timing};
 
-use crate::dynamics::{Dynamic, Velocity};
+use crate::dynamics::{self, Touch, Velocity};
 use crate::music::MidiNote;
 use crate::song::{Hand, NoteId, Seconds, Song};
 
@@ -366,27 +366,25 @@ impl Performance {
 
     /// How the touch of hit notes compares with their marked dynamics.
     fn expression(&self, song: &Song) -> Option<Expression> {
-        let level = |v: Velocity| {
-            Dynamic::ALL
-                .iter()
-                .position(|d| *d == Dynamic::from_velocity(v))
-                .unwrap_or(0) as i32
-        };
         let steps: Vec<i32> = song
             .iter()
             .filter(|(id, _)| matches!(self.statuses[id.0], NoteStatus::Hit(_)))
-            .filter_map(|(id, n)| self.touches[id.0].map(|v| level(v) - level(n.velocity)))
+            .filter_map(|(id, n)| self.touches[id.0].map(|v| dynamics::level_steps(v, n.velocity)))
             .collect();
         (!steps.is_empty()).then(|| {
             let count = steps.len() as f32;
-            let as_marked = steps.iter().filter(|s| s.abs() <= 1).count() as f32 / count;
+            let as_marked = steps
+                .iter()
+                .filter(|s| s.abs() <= dynamics::TOUCH_TOLERANCE)
+                .count() as f32
+                / count;
             let mean = steps.iter().sum::<i32>() as f32 / count;
             Expression {
                 as_marked,
                 lean: match mean {
-                    m if m > LOUDNESS_LEAN => Loudness::Louder,
-                    m if m < -LOUDNESS_LEAN => Loudness::Softer,
-                    _ => Loudness::AsMarked,
+                    m if m > LOUDNESS_LEAN => Touch::TooLoud,
+                    m if m < -LOUDNESS_LEAN => Touch::TooSoft,
+                    _ => Touch::AsMarked,
                 },
             }
         })

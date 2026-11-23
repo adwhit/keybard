@@ -72,15 +72,49 @@ fn play_mode_counts_misses_and_wrong_notes() {
 
 #[test]
 fn midi_touch_is_judged_against_the_dynamics() {
+    use keybard::dynamics::Touch;
     use keybard::dynamics::Velocity;
-    use keybard::performance::Loudness;
     let mut h = Harness::new(song(), PlayMode::Play);
     h.run_until(-0.02);
     // The test song is unmarked (mf); slam the first note.
     h.midi_at(60, KeyEdge::Down, Velocity::new(127));
     let dynamics = h.world().resource::<Judge>().0.insights(&song()).dynamics;
     let dynamics = dynamics.expect("MIDI velocity reaches the judge");
-    assert_eq!(dynamics.lean, Loudness::Louder);
+    assert_eq!(dynamics.lean, Touch::TooLoud);
+}
+
+#[test]
+fn far_off_touch_gets_a_softer_or_louder_cue() {
+    use keybard::dynamics::Velocity;
+    // The test song is unmarked, i.e. mezzo-forte.
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.02);
+    h.midi_at(60, KeyEdge::Down, Velocity::new(127));
+    assert!(h.texts().contains(&"softer".to_owned()), "{:?}", h.texts());
+    // Close to the marking: no nagging.
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.02);
+    h.midi_at(60, KeyEdge::Down, Velocity::new(90));
+    assert!(!h.texts().iter().any(|t| t == "softer" || t == "louder"));
+    // Too soft, on the next note.
+    h.run_until(0.98);
+    h.midi_at(64, KeyEdge::Down, Velocity::new(30));
+    assert!(h.texts().contains(&"louder".to_owned()), "{:?}", h.texts());
+}
+
+#[test]
+fn touch_cues_do_not_nag_on_every_note() {
+    use keybard::dynamics::Velocity;
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.02);
+    h.midi_at(60, KeyEdge::Down, Velocity::new(127));
+    h.run_until(0.3);
+    let cues = |h: &mut Harness| h.texts().iter().filter(|t| *t == "softer").count();
+    assert_eq!(cues(&mut h), 1);
+    // A second slam a beat later is too soon for another cue.
+    h.run_until(0.98);
+    h.midi_at(64, KeyEdge::Down, Velocity::new(127));
+    assert_eq!(cues(&mut h), 0, "first cue faded, no new one yet");
 }
 
 #[test]

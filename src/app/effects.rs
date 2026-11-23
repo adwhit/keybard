@@ -7,9 +7,10 @@ use bevy::sprite::Text2dShadow;
 use super::textures::Textures;
 use super::transport::{CountInTick, Transport};
 use super::{ActiveSong, Feedback, Judge, Keys, Phase, palette};
+use crate::dynamics::Touch;
 use crate::layout;
 use crate::performance::{HIT_WINDOW, Timing};
-use crate::song::Hand;
+use crate::song::{Hand, Seconds};
 
 /// Something that fades out and despawns after `lifetime` seconds.
 #[derive(Component, Debug, Clone, Copy)]
@@ -94,6 +95,7 @@ pub fn plugin(app: &mut App) {
                 combo_milestones,
                 count_in,
                 perfect_bars,
+                touch_cues,
             ),
             (age_ephemerals, move_particles, animate_popups, fade_flashes),
         )
@@ -134,6 +136,8 @@ fn spawn_from_feedback(
             }
             Feedback::Missed(id) => (song.0.note(id).pitch, None, None),
             Feedback::Wrong { pressed, .. } => (pressed, None, None),
+            // Shown by `touch_cues`.
+            Feedback::Touch { .. } => return,
         };
         let Some(geometry) = range.geometry(pitch) else {
             return;
@@ -155,7 +159,7 @@ fn spawn_from_feedback(
         let text = match *event {
             Feedback::Hit(j) => Some((j.timing.label(), palette::timing(j.timing), 1.0)),
             Feedback::Missed(_) => Some(("MISS", palette::MISSED, 0.9)),
-            Feedback::Wrong { .. } | Feedback::AutoPlayed(_) => None,
+            Feedback::Wrong { .. } | Feedback::AutoPlayed(_) | Feedback::Touch { .. } => None,
         };
         // Point a wrong press at the note that was wanted.
         if let Feedback::Wrong {
@@ -274,6 +278,47 @@ pub(super) fn popup(
         },
         Transform::from_xyz(at.x, at.y, POPUP_Z).with_scale(Vec3::splat(scale)),
     ));
+}
+
+/// Song time between "softer"/"louder" cues, so they coach rather than nag.
+const TOUCH_CUE_GAP: Seconds = Seconds(2.0);
+
+/// A small "softer" or "louder" under the timing popup when a MIDI hit is
+/// well away from its marked dynamic.
+fn touch_cues(
+    mut commands: Commands,
+    mut feedback: MessageReader<Feedback>,
+    song: Res<ActiveSong>,
+    keys: Res<Keys>,
+    transport: Res<Transport>,
+    mut last: Local<Option<Seconds>>,
+) {
+    feedback.read().for_each(|event| {
+        let Feedback::Touch { note, touch } = *event else {
+            return;
+        };
+        let now = transport.time;
+        if last.is_some_and(|t| (now - t).0.abs() < TOUCH_CUE_GAP.0) {
+            return;
+        }
+        let label = match touch {
+            Touch::TooLoud => "softer",
+            Touch::TooSoft => "louder",
+            Touch::AsMarked => return,
+        };
+        let Some(geometry) = keys.0.geometry(song.0.note(note).pitch) else {
+            return;
+        };
+        *last = Some(now);
+        popup(
+            &mut commands,
+            label,
+            palette::TOUCH_CUE,
+            Vec2::new(geometry.center_x, layout::HIT_LINE + 14.0),
+            13.0,
+            1.0,
+        );
+    });
 }
 
 fn combo_milestones(mut commands: Commands, judge: Res<Judge>, mut last_combo: Local<u32>) {

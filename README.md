@@ -92,7 +92,9 @@ loudness too: soft passages fall in muted tones, loud ones bright. On a
 touch-sensitive MIDI
 keyboard, the results card also scores your expression: how many hits landed
 within one level of the marking, and whether you played mostly too loud or too
-soft ("Dynamics 40% as marked: mostly too loud").
+soft ("Dynamics 40% as marked: mostly too loud"). While you play, a hit two or
+more levels off its marking gets a small "softer" or "louder" cue (at most
+one every two seconds).
 
 ### Chord symbols
 

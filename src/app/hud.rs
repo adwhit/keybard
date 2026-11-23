@@ -291,7 +291,10 @@ fn update_timing(
             display.last = Some(*j);
             display.last_age = 0.0;
         }
-        Feedback::Missed(_) | Feedback::Wrong { .. } | Feedback::AutoPlayed(_) => {}
+        Feedback::Missed(_)
+        | Feedback::Wrong { .. }
+        | Feedback::AutoPlayed(_)
+        | Feedback::Touch { .. } => {}
     });
     display.last_age += time.delta_secs();
     let (text, color) = &mut *text;
@@ -335,7 +338,7 @@ fn tick_strip(
         let (id, color) = match *event {
             Feedback::Hit(j) => (j.note, palette::timing(j.timing)),
             Feedback::Missed(id) => (id, palette::MISSED),
-            Feedback::AutoPlayed(_) | Feedback::Wrong { .. } => return,
+            Feedback::AutoPlayed(_) | Feedback::Wrong { .. } | Feedback::Touch { .. } => return,
         };
         let x = layout::LEFT + song.0.note(id).start.0 / duration * layout::CANVAS_WIDTH;
         commands.spawn((

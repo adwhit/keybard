@@ -27,6 +27,8 @@ pub const WHITE_KEY: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const BLACK_KEY: Color = Color::srgb(0.07, 0.07, 0.08);
 /// Hand-position shift markers on bars.
 pub const SHIFT: Color = Color::srgb(1.0, 0.78, 0.25);
+/// "softer"/"louder" coaching under hits.
+pub const TOUCH_CUE: Color = Color::srgb(0.80, 0.70, 1.0);
 /// Text drawn on light and dark surfaces.
 pub const DARK_INK: Color = Color::srgb(0.04, 0.04, 0.06);
 pub const LIGHT_INK: Color = Color::srgb(0.97, 0.97, 0.95);
