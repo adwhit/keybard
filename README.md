@@ -188,6 +188,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/key.rs`: key-signature inference and pitch spelling
 - `src/notation.rs`: where rests go (gaps split at bar lines into standard values)
 - `src/fingering.rs`: automatic fingering (dynamic programming, ergonomic costs)
 - `src/synth.rs`: additive struck-string synth (pure sample generation)
@@ -200,12 +201,12 @@ Layout:
 
 ## Status
 
-Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, rests,
+Working: grand-staff notation (clefs, inferred key signatures with sharps or
+flats, accidentals only where needed, ledger lines, stems, flags, rests,
 bar lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
 bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
 piano-like additive synth.
 
-Not yet done: key signatures and flats (all accidentals are written as
-sharps), beaming, sampled piano sound, and
+Not yet done: beaming, sampled piano sound, and
 choosing a MIDI port.

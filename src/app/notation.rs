@@ -9,7 +9,7 @@ use super::songs::{SongLoad, SongScoped};
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout::{self, staff};
-use crate::music::{Accidental, Clef, StaffPosition, StemDirection};
+use crate::music::{Clef, StaffPosition, StemDirection};
 use crate::notation::{Rest, RestShape, rests};
 use crate::performance::NoteStatus;
 use crate::song::{Beats, Hand, Note, NoteId, Seconds, Song};
@@ -90,6 +90,8 @@ const HEAD_Z: f32 = 6.0;
 const STEM_LENGTH: f32 = 34.0;
 const LEDGER_HALF_WIDTH: f32 = 10.0;
 const SHARP_OFFSET: f32 = 16.0;
+/// Where the key signature starts, after the clef.
+const KEY_SIGNATURE_X: f32 = 52.0;
 
 pub fn plugin(app: &mut App) {
     app.init_gizmo_group::<NotationGizmos>()
@@ -115,9 +117,9 @@ fn clef_for(hand: Hand) -> Clef {
     }
 }
 
-fn head_position(note: &Note) -> (Clef, StaffPosition) {
+fn head_position(song: &Song, note: &Note) -> (Clef, StaffPosition) {
     let clef = clef_for(note.hand);
-    (clef, clef.staff_position(note.pitch))
+    (clef, clef.position_of(song.key().spell(note.pitch)))
 }
 
 fn shape_of(song: &Song, note: &Note) -> NoteShape {
@@ -171,7 +173,7 @@ fn spawn_heads(
             Visibility::Hidden,
         ));
         // Put the digit on the side away from the stem.
-        let (_, position) = head_position(note);
+        let (_, position) = head_position(song, note);
         let side = match position.stem_direction() {
             StemDirection::Up => -1.0,
             StemDirection::Down => 1.0,
@@ -229,7 +231,7 @@ fn update_heads(
                 return;
             }
             *visibility = Visibility::Inherited;
-            let (clef, position) = head_position(note);
+            let (clef, position) = head_position(&song.0, note);
             transform.translation.x = x;
             transform.translation.y = staff::y(clef, position);
             let wanted = if note.is_sounding_at(now) {
@@ -267,6 +269,13 @@ fn draw_staves(
         });
         let origin = Vec2::new(staff::LEFT_EDGE + 22.0, staff::bottom_line(clef));
         glyphs::draw_clef(&mut clef_gizmos, clef, origin, palette::INK);
+        glyphs::draw_key_signature(
+            &mut gizmos,
+            song.0.key(),
+            clef,
+            staff::LEFT_EDGE + KEY_SIGNATURE_X,
+            palette::INK,
+        );
     });
 
     let top = staff::y(Clef::Treble, StaffPosition::TOP_LINE);
@@ -354,7 +363,7 @@ fn draw_note_marks(
         .take_while(|n| n.start <= to)
         .for_each(|note| {
             let x = staff::x(note.start - now);
-            let (clef, position) = head_position(note);
+            let (clef, position) = head_position(song, note);
             let y = staff::y(clef, position);
             let shape = shape_of(song, note);
 
@@ -379,8 +388,14 @@ fn draw_note_marks(
                 }
             }
 
-            if note.pitch.pitch_class().accidental() == Accidental::Sharp {
-                glyphs::draw_sharp(&mut gizmos, Vec2::new(x - SHARP_OFFSET, y), palette::INK);
+            let key = song.key();
+            if let Some(accidental) = key.accidental_to_show(key.spell(note.pitch)) {
+                glyphs::draw_accidental(
+                    &mut gizmos,
+                    accidental,
+                    Vec2::new(x - SHARP_OFFSET, y),
+                    palette::INK,
+                );
             }
         });
 }

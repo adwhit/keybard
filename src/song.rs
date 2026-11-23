@@ -4,6 +4,7 @@ use std::ops::{Add, Sub};
 
 use crate::error::Error;
 use crate::fingering::{self, Finger};
+use crate::key::KeySignature;
 use crate::music::{Letter, MidiNote};
 
 /// A point in (or span of) song time, in seconds.
@@ -114,6 +115,7 @@ pub struct Song {
     fingers: Vec<Finger>,
     /// Whether each note moves the hand to a new position.
     shifts: Vec<bool>,
+    key: KeySignature,
 }
 
 impl Song {
@@ -128,12 +130,14 @@ impl Song {
         notes.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.pitch.cmp(&b.pitch)));
         let fingers = fingering::assign(&notes);
         let shifts = fingering::position_shifts(&notes, &fingers);
+        let key = KeySignature::infer(notes.iter().map(|n| (n.pitch, n.duration.0)));
         Ok(Self {
             title: title.into(),
             tempo,
             notes,
             fingers,
             shifts,
+            key,
         })
     }
 
@@ -143,6 +147,11 @@ impl Song {
 
     pub fn note(&self, id: NoteId) -> &Note {
         &self.notes[id.0]
+    }
+
+    /// The key signature the song is written in (inferred).
+    pub fn key(&self) -> KeySignature {
+        self.key
     }
 
     /// Whether the hand has to move to a new position for this note.

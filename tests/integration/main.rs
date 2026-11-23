@@ -3,6 +3,7 @@
 
 mod app;
 mod fingering;
+mod key;
 mod layout;
 mod midi_file;
 mod music;

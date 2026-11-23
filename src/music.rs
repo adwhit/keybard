@@ -43,7 +43,7 @@ impl MidiNote {
     pub fn key_color(self) -> KeyColor {
         match self.pitch_class().accidental() {
             Accidental::Natural => KeyColor::White,
-            Accidental::Sharp => KeyColor::Black,
+            Accidental::Sharp | Accidental::Flat => KeyColor::Black,
         }
     }
 
@@ -95,6 +95,16 @@ pub enum Letter {
 }
 
 impl Letter {
+    pub const ALL: [Self; 7] = [
+        Self::C,
+        Self::D,
+        Self::E,
+        Self::F,
+        Self::G,
+        Self::A,
+        Self::B,
+    ];
+
     pub fn index(self) -> i32 {
         match self {
             Self::C => 0,
@@ -124,6 +134,22 @@ impl Letter {
 pub enum Accidental {
     Natural,
     Sharp,
+    Flat,
+}
+
+/// How a pitch is written: a letter, an accidental and the octave of the
+/// letter (which can differ from the pitch's octave for e.g. Cb).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spelled {
+    pub letter: Letter,
+    pub accidental: Accidental,
+    pub octave: i8,
+}
+
+impl Spelled {
+    pub fn diatonic_step(self) -> i32 {
+        i32::from(self.octave + 1) * 7 + self.letter.index()
+    }
 }
 
 /// The twelve pitch classes, spelled with sharps.
@@ -216,6 +242,7 @@ impl fmt::Display for PitchClass {
         let accidental = match self.accidental() {
             Accidental::Natural => "",
             Accidental::Sharp => "#",
+            Accidental::Flat => "b",
         };
         write!(f, "{letter}{accidental}")
     }
@@ -271,6 +298,11 @@ impl Clef {
             Self::Treble => MidiNote(64), // E4
             Self::Bass => MidiNote(43),   // G2
         }
+    }
+
+    /// Where a spelled note sits: Bb on the B line, A# in the A space.
+    pub fn position_of(self, spelled: Spelled) -> StaffPosition {
+        StaffPosition(spelled.diatonic_step() - self.bottom_line().diatonic_step())
     }
 
     pub fn staff_position(self, note: MidiNote) -> StaffPosition {

@@ -1104,3 +1104,21 @@ fn rests_are_found_for_the_loaded_song_and_rebuilt_on_switch() {
         expected(&fur_elise)
     );
 }
+
+#[test]
+fn notes_sit_where_the_key_spells_them() {
+    use keybard::music::{Clef, StaffPosition};
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let notes = parse_voice("F4 G4 A4 A#4 C5 D5 E5 F5", Hand::Right, tempo).unwrap();
+    let song = Song::new("f major", tempo, notes).unwrap();
+    assert_eq!(song.key().accidentals(), -1);
+    let mut h = Harness::new(song, PlayMode::Listen);
+    h.run_until(2.5);
+    let (bb, _) = h.head(3);
+    let middle = layout::staff::y(Clef::Treble, StaffPosition::MIDDLE_LINE);
+    assert!(
+        (bb.y - middle).abs() < 0.01,
+        "Bb on the B line: {} vs {middle}",
+        bb.y
+    );
+}

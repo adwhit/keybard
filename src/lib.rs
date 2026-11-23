@@ -4,6 +4,7 @@ pub mod app;
 pub mod builtin;
 pub mod error;
 pub mod fingering;
+pub mod key;
 pub mod layout;
 pub mod midi_file;
 pub mod music;
