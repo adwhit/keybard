@@ -1,0 +1,394 @@
+//! Headless app tests: scoring.
+
+use super::*;
+
+#[test]
+fn wait_mode_holds_until_the_right_key_is_played() {
+    let mut h = Harness::new(song(), PlayMode::Wait);
+    h.run_until(0.0);
+    h.frames(30);
+    assert_eq!(h.time(), Seconds(0.0), "waiting for C3+C4");
+
+    h.midi(60, KeyEdge::Down);
+    h.frames(10);
+    assert_eq!(h.time(), Seconds(0.0), "still waiting for the left hand");
+    assert!(matches!(h.status(C4), NoteStatus::Hit(_)));
+    assert!(h.world().resource::<HeldKeys>().0.contains(&n(60)));
+    assert_eq!(
+        h.key_color(60),
+        palette::hand_lit(Hand::Right),
+        "held and correct"
+    );
+
+    h.midi(48, KeyEdge::Down);
+    h.midi(60, KeyEdge::Up);
+    assert!(!h.world().resource::<HeldKeys>().0.contains(&n(60)));
+    h.frames(10);
+    assert!(h.time().0 > 0.0, "released");
+    h.run_until(1.0);
+    h.frames(10);
+    assert_eq!(h.time(), Seconds(1.0), "gated at E4");
+}
+
+#[test]
+fn computer_keyboard_plays_notes() {
+    let mut h = Harness::new(song(), PlayMode::Wait);
+    h.run_until(0.0);
+    // Z is C3, Q is C4 in the default octave.
+    h.key(KeyCode::KeyZ, ButtonState::Pressed);
+    h.key(KeyCode::KeyQ, ButtonState::Pressed);
+    let held = h.world().resource::<HeldKeys>().0.clone();
+    assert!(held.contains(&n(48)) && held.contains(&n(60)));
+    h.frames(5);
+    assert!(h.time().0 > 0.0);
+    assert!(matches!(h.status(C3), NoteStatus::Hit(_)));
+    assert!(matches!(h.status(C4), NoteStatus::Hit(_)));
+
+    // Shift up an octave: Z now plays C4.
+    h.key(KeyCode::KeyZ, ButtonState::Released);
+    h.tap(KeyCode::Equal);
+    h.key(KeyCode::KeyZ, ButtonState::Pressed);
+    assert!(h.world().resource::<HeldKeys>().0.contains(&n(60)));
+}
+
+#[test]
+fn play_mode_counts_misses_and_wrong_notes() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.05);
+    h.midi(60, KeyEdge::Down);
+    h.midi(61, KeyEdge::Down);
+    h.run_until(3.5);
+    let score = h.world().resource::<Judge>().0.score();
+    assert_eq!((score.hits(), score.missed, score.wrong), (1, 3, 1));
+    assert_eq!(score.combo, 0);
+    assert_eq!(
+        h.key_color(61),
+        palette::PRESSED,
+        "held stray key stays lit"
+    );
+    assert_eq!(h.status(G4), NoteStatus::Missed);
+}
+
+#[test]
+fn hits_spawn_particles_popups_and_progress_ticks() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.01);
+    h.midi(60, KeyEdge::Down);
+    assert!(h.count::<Particle>() > 10, "a perfect hit bursts");
+    assert!(h.count::<KeyFlash>() >= 1);
+    assert_eq!(h.count::<Popup>(), 1);
+    assert!(h.texts().contains(&"PERFECT".to_owned()));
+    assert_eq!(h.count::<ProgressTick>(), 1);
+    // Effects are short-lived, and keep animating while paused.
+    h.tap(KeyCode::Space);
+    h.frames(90);
+    assert_eq!(h.count::<Particle>(), 0);
+    assert_eq!(h.count::<Popup>(), 0);
+}
+
+#[test]
+fn misses_announce_themselves() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(0.25);
+    assert!(h.texts().contains(&"MISS".to_owned()));
+}
+
+#[test]
+fn autopilot_plays_a_whole_song_and_earns_a_result() {
+    // Short and quick, but with chords and both hands.
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice("C4 E4 G4 C5 B4 G4 E4+G4 D4 C4/2", Hand::Right, tempo)
+        .unwrap()
+        .into_iter()
+        .chain(parse_voice("C3/2 G2/2 C3+E3/2 G2/2", Hand::Left, tempo).unwrap())
+        .collect();
+    let song = Song::new("quick", tempo, notes).unwrap();
+    let notes = song.notes().len();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+    let end = h.world().resource::<ActiveSong>().0.duration().0;
+    h.run_until(end + 1.4);
+    h.frames(30);
+    let score = h.score();
+    assert_eq!(score.hits(), notes, "{score:?}");
+    assert_eq!((score.missed, score.wrong), (0, 0));
+    assert!(
+        score.perfect > 0 && score.great > 0,
+        "jitter gives a mix: {score:?}"
+    );
+    assert_eq!(score.max_combo as usize, notes);
+    assert!(score.is_full_combo());
+
+    let result = h.world().resource::<LastResult>().clone();
+    assert_eq!(result.submission, Submission::NewBest { previous: None });
+    assert_eq!(h.count::<ResultsCard>(), 1);
+
+    // Replaying clears the card and resets the score.
+    h.tap(KeyCode::Space);
+    assert_eq!(h.count::<ResultsCard>(), 0);
+    assert_eq!(h.score(), Score::default());
+}
+
+#[test]
+fn personal_bests_are_saved_to_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bests.tsv");
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Wait,
+        Player::Autopilot,
+        RecordStore::File(path.clone()),
+    );
+    h.run_until(4.4);
+    h.frames(30);
+    assert_eq!(h.transport().state, PlayState::Finished);
+
+    let records = Records::load(&path).unwrap();
+    let best = records
+        .best(&RecordKey {
+            title: "test".to_owned(),
+            mode: PlayMode::Wait,
+            hands: Hands::Both,
+        })
+        .expect("best recorded");
+    assert_eq!(best.points, h.score().points);
+    assert!(best.points > 0);
+
+    // A second run of the same app sees the earlier best.
+    h.tap(KeyCode::Space);
+    h.run_until(4.4);
+    h.frames(30);
+    let result = h.world().resource::<LastResult>().clone();
+    assert!(matches!(result.submission, Submission::NotBest { .. }));
+}
+
+#[test]
+fn listen_mode_is_not_scored_and_shows_no_results() {
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Listen,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    h.run_until(4.4);
+    h.frames(30);
+    assert_eq!(h.score(), Score::default());
+    assert!(h.world().get_resource::<LastResult>().is_none());
+    assert_eq!(h.count::<ResultsCard>(), 0);
+}
+
+#[test]
+fn autopilot_jitter_is_bounded_and_varied() {
+    let offsets: Vec<f32> = (0..200)
+        .map(|i| keybard::app::autopilot_jitter(NoteId(i)).0)
+        .collect();
+    assert!(offsets.iter().all(|o| o.abs() <= 0.0701));
+    let timings: std::collections::HashSet<_> = offsets
+        .iter()
+        .filter_map(|o| Timing::from_offset(Seconds(*o)))
+        .collect();
+    assert!(timings.len() >= 2);
+}
+
+#[test]
+fn a_hot_streak_sets_the_screen_on_fire_and_breaking_it_cools_down() {
+    use keybard::app::heat::{Ember, HeatGlow};
+    use keybard::performance::Heat;
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(10), Hand::Right, tempo).unwrap();
+    let song = Song::new("streak", tempo, notes).unwrap();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+
+    let mut saw_on_fire_banner = false;
+    while h.score().heat() != Heat::OnFire {
+        h.app.update();
+        assert!(h.time().0 < 30.0, "never got hot");
+    }
+    // Let the glow catch up and the embers start.
+    (0..60).for_each(|_| {
+        h.app.update();
+        saw_on_fire_banner |= h.texts().contains(&"ON FIRE!".to_owned());
+    });
+    assert!(saw_on_fire_banner);
+    assert!(h.world().resource::<HeatGlow>().0 > 0.9);
+    assert!(h.count::<Ember>() > 10, "embers drift up");
+
+    // A wrong note breaks the streak.
+    h.midi(30, KeyEdge::Down);
+    assert_eq!(h.score().heat(), Heat::Cold);
+    assert!(h.texts().contains(&"STREAK LOST".to_owned()));
+    h.tap(KeyCode::Space); // pause so the autopilot can't rebuild it
+    h.frames(90);
+    assert!(h.world().resource::<HeatGlow>().0 < 0.1, "cools down");
+    assert_eq!(h.count::<Ember>(), 0);
+}
+
+#[test]
+fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
+    use keybard::app::results::BarCell;
+    use keybard::app::section::SectionLoop;
+    // 240bpm 4/4: six one-second bars.
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(6), Hand::Right, tempo).unwrap();
+    let song = Song::new("bars", tempo, notes).unwrap();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Human, RecordStore::Memory);
+    // Play nothing at all: every bar is missed.
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let result = h.world().resource::<LastResult>().clone();
+    assert_eq!(result.bars, vec![Some(0.0); 6]);
+    assert_eq!(result.weakest, Some(1));
+    assert_eq!(h.count::<BarCell>(), 6);
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(texts.iter().any(|t| t.contains("bars 1-4")), "{texts:?}");
+    assert!(
+        texts
+            .iter()
+            .any(|t| t == "Most missed: E4 x12, C4 x6, G4 x6"),
+        "{texts:?}"
+    );
+    assert!(
+        texts.iter().any(|t| t == "Keep practising!"),
+        "no fanfare for zero hits: {texts:?}"
+    );
+    assert!(texts.iter().any(|t| t == "Right hand 0%"), "{texts:?}");
+
+    h.tap(KeyCode::F3);
+    let region = h
+        .world()
+        .resource::<SectionLoop>()
+        .0
+        .as_ref()
+        .expect("drilling")
+        .region;
+    assert_eq!(region.start, Seconds(0.0));
+    assert_eq!(region.end, Seconds(4.0));
+    assert_eq!(h.transport().state, PlayState::Playing);
+    assert!(h.time() < region.start, "starts with a lead-in");
+    assert_eq!(h.score(), Score::default(), "fresh score for the drill");
+    assert!(
+        (h.transport().speed.get() - 0.7).abs() < 1e-5,
+        "drills start slow"
+    );
+    assert_eq!(h.count::<ResultsCard>(), 0);
+}
+
+#[test]
+fn the_hud_says_when_midi_is_off() {
+    use keybard::app::input::MidiStatus;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    assert_eq!(*h.world().resource::<MidiStatus>(), MidiStatus::Off);
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(texts.iter().any(|t| t.contains("MIDI off")), "{texts:?}");
+    assert_eq!(
+        MidiStatus::Connected("Yamaha P-125".into()).label(),
+        "MIDI: Yamaha P-125"
+    );
+}
+
+#[test]
+fn finishing_well_unlocks_achievements_once() {
+    use keybard::achievements::Achievement;
+    use keybard::app::results::Unlocked;
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let first = h.world().resource::<LastResult>().new_achievements.clone();
+    assert!(first.contains(&Achievement::FirstClear), "{first:?}");
+    assert!(first.contains(&Achievement::FullCombo), "{first:?}");
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(
+        texts.iter().any(|t| t.starts_with("UNLOCKED  Unbroken")),
+        "{texts:?}"
+    );
+
+    h.tap(KeyCode::Space);
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert!(
+        h.world()
+            .resource::<LastResult>()
+            .new_achievements
+            .is_empty(),
+        "nothing new the second time"
+    );
+    assert_eq!(
+        h.world().resource::<Unlocked>().achievements.count(),
+        first.len()
+    );
+}
+
+#[test]
+fn achievements_are_saved_next_to_the_bests() {
+    let dir = tempfile::tempdir().unwrap();
+    let bests = dir.path().join("bests.tsv");
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Wait,
+        Player::Autopilot,
+        RecordStore::File(bests),
+    );
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let saved = std::fs::read_to_string(dir.path().join("achievements.txt")).unwrap();
+    assert!(saved.contains("first-clear"), "{saved}");
+}
+
+#[test]
+fn f5_shows_the_achievement_gallery() {
+    use keybard::achievements::Achievement;
+    use keybard::app::results::{AchievementGallery, Unlocked};
+    let mut h = Harness::new(song(), PlayMode::Play);
+    let gallery = |h: &mut Harness| {
+        let mut q = h
+            .world()
+            .query_filtered::<(&Text, &Visibility), With<AchievementGallery>>();
+        let (text, vis) = q.single(h.app.world()).unwrap();
+        (text.0.clone(), *vis != Visibility::Hidden)
+    };
+    assert!(!gallery(&mut h).1, "hidden until asked for");
+    h.world()
+        .resource_mut::<Unlocked>()
+        .achievements
+        .grant(Achievement::FullCombo);
+    h.tap(KeyCode::F5);
+    let (text, shown) = gallery(&mut h);
+    assert!(shown);
+    assert!(text.contains("ACHIEVEMENTS 1/12"), "{text}");
+    assert!(text.contains("[x] Unbroken"), "{text}");
+    assert!(text.contains("[ ] S Rank"), "{text}");
+    assert_eq!(text.lines().count(), 1 + Achievement::ALL.len());
+    h.tap(KeyCode::F5);
+    assert!(!gallery(&mut h).1);
+}
+
+#[test]
+fn wrong_notes_suggest_the_right_one() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(0.95);
+    h.midi(62, KeyEdge::Down); // D4 while E4 is due
+    assert!(h.texts().contains(&"try E4".to_owned()), "{:?}", h.texts());
+    // Two flashes: the wrong key and the wanted one.
+    assert!(h.count::<KeyFlash>() >= 2);
+}

@@ -180,7 +180,7 @@ HUD shows which device is connected, or why none is.
 ## Development
 
 ```bash
-just check   # fmt-check + clippy -D warnings + tests
+just check   # fmt-check + clippy -D warnings + file-length guard + tests
 just test
 ```
 

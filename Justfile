@@ -3,11 +3,15 @@ default:
     @just --list
 
 # Run everything CI would: format check, lints, tests
-check: fmt-check lint test
+check: fmt-check lint loc test
 
 # Run all unit and integration tests (headless; no window opens)
 test *ARGS:
     cargo test {{ARGS}}
+
+# Fail if any Rust file reaches 1000 lines (AGENTS.md: keep files small)
+loc:
+    @! find src tests -name '*.rs' -exec wc -l {} + | awk '$2 != "total" && $1 >= 1000 {print "too long: " $2 " (" $1 " lines)"; found=1} END {exit !found}'
 
 # Clippy with warnings as errors
 lint:
