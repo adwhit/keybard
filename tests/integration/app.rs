@@ -7,17 +7,23 @@ use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
+use keybard::app::effects::{KeyFlash, Particle, Popup};
+use keybard::app::falling::BarLabel;
 use keybard::app::falling::FallingBar;
+use keybard::app::hud::ProgressTick;
 use keybard::app::input::{HeldKeys, InputSource, KeyEdge, NoteInput};
 use keybard::app::notation::NoteHead;
 use keybard::app::piano::PianoKey;
+use keybard::app::results::{LastResult, ResultsCard};
 use keybard::app::transport::{PlayState, Transport};
 use keybard::app::{
-    self, ActiveSong, Backend, Judge, Keys, Logging, MidiInput, Options, PlayTone, palette,
+    self, ActiveSong, Backend, Judge, Keys, Logging, MidiInput, Options, PlayTone, Player,
+    RecordStore, palette,
 };
 use keybard::layout;
 use keybard::music::MidiNote;
-use keybard::performance::{NoteStatus, PlayMode};
+use keybard::performance::{NoteStatus, PlayMode, Score, Timing};
+use keybard::records::{RecordKey, Records, Submission};
 use keybard::song::{Hand, NoteId, Seconds, Song, Tempo, parse_voice};
 
 const FRAME: Duration = Duration::from_micros(16_667);
@@ -28,12 +34,18 @@ struct Harness {
 
 impl Harness {
     fn new(song: Song, mode: PlayMode) -> Self {
+        Self::with(song, mode, Player::Human, RecordStore::Memory)
+    }
+
+    fn with(song: Song, mode: PlayMode, player: Player, records: RecordStore) -> Self {
         let mut app = app::build(Options {
             song,
             mode,
             midi_input: MidiInput::Disabled,
             backend: Backend::Headless,
             logging: Logging::Disabled,
+            player,
+            records,
         });
         app.insert_resource(TimeUpdateStrategy::ManualDuration(FRAME));
         app.finish();
@@ -97,6 +109,19 @@ impl Harness {
     fn tones(&mut self) -> Vec<PlayTone> {
         let messages = self.world().resource::<Messages<PlayTone>>();
         messages.iter_current_update_messages().copied().collect()
+    }
+
+    fn count<C: Component>(&mut self) -> usize {
+        self.world().query::<&C>().iter(self.app.world()).count()
+    }
+
+    fn texts(&mut self) -> Vec<String> {
+        let mut q = self.world().query::<&Text2d>();
+        q.iter(self.app.world()).map(|t| t.0.clone()).collect()
+    }
+
+    fn score(&self) -> Score {
+        self.app.world().resource::<Judge>().0.score().clone()
     }
 
     fn status(&self, id: usize) -> NoteStatus {
@@ -221,7 +246,7 @@ fn listen_mode_plays_tones_and_lights_keys() {
     assert_eq!(h.key_color(60), palette::hand(Hand::Right));
     assert_eq!(h.key_color(48), palette::hand(Hand::Left));
     assert_eq!(h.key_color(62), palette::WHITE_KEY);
-    assert_eq!(h.status(C4), NoteStatus::Hit);
+    assert_eq!(h.status(C4), NoteStatus::AutoPlayed);
 }
 
 #[test]
@@ -234,9 +259,13 @@ fn wait_mode_holds_until_the_right_key_is_played() {
     h.midi(60, KeyEdge::Down);
     h.frames(10);
     assert_eq!(h.time(), Seconds(0.0), "still waiting for the left hand");
-    assert_eq!(h.status(C4), NoteStatus::Hit);
+    assert!(matches!(h.status(C4), NoteStatus::Hit(_)));
     assert!(h.world().resource::<HeldKeys>().0.contains(&n(60)));
-    assert_eq!(h.key_color(60), palette::PRESSED);
+    assert_eq!(
+        h.key_color(60),
+        palette::hand_lit(Hand::Right),
+        "held and correct"
+    );
 
     h.midi(48, KeyEdge::Down);
     h.midi(60, KeyEdge::Up);
@@ -259,10 +288,8 @@ fn computer_keyboard_plays_notes() {
     assert!(held.contains(&n(48)) && held.contains(&n(60)));
     h.frames(5);
     assert!(h.time().0 > 0.0);
-    assert_eq!(
-        (h.status(C3), h.status(C4)),
-        (NoteStatus::Hit, NoteStatus::Hit)
-    );
+    assert!(matches!(h.status(C3), NoteStatus::Hit(_)));
+    assert!(matches!(h.status(C4), NoteStatus::Hit(_)));
 
     // Shift up an octave: Z now plays C4.
     h.key(KeyCode::KeyZ, ButtonState::Released);
@@ -279,7 +306,13 @@ fn play_mode_counts_misses_and_wrong_notes() {
     h.midi(61, KeyEdge::Down);
     h.run_until(3.5);
     let score = h.world().resource::<Judge>().0.score();
-    assert_eq!((score.hit, score.missed, score.wrong), (1, 3, 1));
+    assert_eq!((score.hits(), score.missed, score.wrong), (1, 3, 1));
+    assert_eq!(score.combo, 0);
+    assert_eq!(
+        h.key_color(61),
+        palette::PRESSED,
+        "held stray key stays lit"
+    );
     assert_eq!(h.status(G4), NoteStatus::Missed);
 }
 
@@ -330,4 +363,162 @@ fn headless_app_exits_when_the_song_finishes() {
     h.frames(30);
     assert_eq!(h.transport().state, PlayState::Finished);
     assert!(h.app.should_exit().is_some());
+}
+
+#[test]
+fn hits_spawn_particles_popups_and_progress_ticks() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(-0.01);
+    h.midi(60, KeyEdge::Down);
+    assert!(h.count::<Particle>() > 10, "a perfect hit bursts");
+    assert!(h.count::<KeyFlash>() >= 1);
+    assert_eq!(h.count::<Popup>(), 1);
+    assert!(h.texts().contains(&"PERFECT".to_owned()));
+    assert_eq!(h.count::<ProgressTick>(), 1);
+    // Effects are short-lived, and keep animating while paused.
+    h.tap(KeyCode::Space);
+    h.frames(90);
+    assert_eq!(h.count::<Particle>(), 0);
+    assert_eq!(h.count::<Popup>(), 0);
+}
+
+#[test]
+fn misses_announce_themselves() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(0.25);
+    assert!(h.texts().contains(&"MISS".to_owned()));
+}
+
+#[test]
+fn note_name_labels_toggle() {
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let visible = |h: &mut Harness| {
+        let mut q = h.world().query_filtered::<&Visibility, With<BarLabel>>();
+        q.iter(h.app.world())
+            .filter(|v| **v != Visibility::Hidden)
+            .count()
+    };
+    assert_eq!(visible(&mut h), 4);
+    h.tap(KeyCode::F1);
+    assert_eq!(visible(&mut h), 0);
+    h.tap(KeyCode::F1);
+    assert_eq!(visible(&mut h), 4);
+}
+
+#[test]
+fn autopilot_plays_a_whole_song_and_earns_a_result() {
+    // Short and quick, but with chords and both hands.
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice("C4 E4 G4 C5 B4 G4 E4+G4 D4 C4/2", Hand::Right, tempo)
+        .unwrap()
+        .into_iter()
+        .chain(parse_voice("C3/2 G2/2 C3+E3/2 G2/2", Hand::Left, tempo).unwrap())
+        .collect();
+    let song = Song::new("quick", tempo, notes).unwrap();
+    let notes = song.notes().len();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+    let end = h.world().resource::<ActiveSong>().0.duration().0;
+    h.run_until(end + 1.4);
+    h.frames(30);
+    let score = h.score();
+    assert_eq!(score.hits(), notes, "{score:?}");
+    assert_eq!((score.missed, score.wrong), (0, 0));
+    assert!(
+        score.perfect > 0 && score.great > 0,
+        "jitter gives a mix: {score:?}"
+    );
+    assert_eq!(score.max_combo as usize, notes);
+    assert!(score.is_full_combo());
+
+    let result = h.world().resource::<LastResult>().clone();
+    assert_eq!(result.submission, Submission::NewBest { previous: None });
+    assert_eq!(h.count::<ResultsCard>(), 1);
+
+    // Replaying clears the card and resets the score.
+    h.tap(KeyCode::Space);
+    assert_eq!(h.count::<ResultsCard>(), 0);
+    assert_eq!(h.score(), Score::default());
+}
+
+#[test]
+fn personal_bests_are_saved_to_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bests.tsv");
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Wait,
+        Player::Autopilot,
+        RecordStore::File(path.clone()),
+    );
+    h.run_until(4.4);
+    h.frames(30);
+    assert_eq!(h.transport().state, PlayState::Finished);
+
+    let records = Records::load(&path).unwrap();
+    let best = records
+        .best(&RecordKey {
+            title: "test".to_owned(),
+            mode: PlayMode::Wait,
+        })
+        .expect("best recorded");
+    assert_eq!(best.points, h.score().points);
+    assert!(best.points > 0);
+
+    // A second run of the same app sees the earlier best.
+    h.tap(KeyCode::Space);
+    h.run_until(4.4);
+    h.frames(30);
+    let result = h.world().resource::<LastResult>().clone();
+    assert!(matches!(result.submission, Submission::NotBest { .. }));
+}
+
+#[test]
+fn listen_mode_is_not_scored_and_shows_no_results() {
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Listen,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    h.run_until(4.4);
+    h.frames(30);
+    assert_eq!(h.score(), Score::default());
+    assert!(h.world().get_resource::<LastResult>().is_none());
+    assert_eq!(h.count::<ResultsCard>(), 0);
+}
+
+#[test]
+fn autopilot_jitter_is_bounded_and_varied() {
+    let offsets: Vec<f32> = (0..200)
+        .map(|i| keybard::app::autopilot_jitter(NoteId(i)).0)
+        .collect();
+    assert!(offsets.iter().all(|o| o.abs() <= 0.0701));
+    let timings: std::collections::HashSet<_> = offsets
+        .iter()
+        .filter_map(|o| Timing::from_offset(Seconds(*o)))
+        .collect();
+    assert!(timings.len() >= 2);
+}
+
+#[test]
+fn help_shows_before_the_music_and_while_paused() {
+    use keybard::app::hud::HelpText;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    let shown = |h: &mut Harness| {
+        let mut q = h.world().query_filtered::<&Visibility, With<HelpText>>();
+        *q.single(h.app.world()).unwrap() != Visibility::Hidden
+    };
+    assert!(shown(&mut h), "lead-in");
+    h.run_until(0.5);
+    assert!(!shown(&mut h), "playing");
+    h.tap(KeyCode::Space);
+    assert!(shown(&mut h), "paused");
+}
+
+#[test]
+fn snapshots_past_the_end_are_taken_when_the_song_finishes() {
+    use keybard::app::SnapshotPlan;
+    assert!(!SnapshotPlan::is_due(Seconds(40.0), Seconds(39.9), false));
+    assert!(SnapshotPlan::is_due(Seconds(40.0), Seconds(39.9), true));
+    assert!(SnapshotPlan::is_due(Seconds(5.0), Seconds(5.0), false));
 }

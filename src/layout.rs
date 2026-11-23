@@ -97,8 +97,8 @@ impl KeyRange {
         let high_b = i16::from(high.value()) / 12 * 12 + 11;
         let octaves = (high_b + 1 - low_c) / 12;
         let missing = (Self::MIN_OCTAVES - octaves).max(0);
-        // Grow downwards first (bass), then upwards, staying within MIDI.
-        let extra_low = (missing + 1) / 2;
+        // Split the padding, giving any odd octave to the treble side.
+        let extra_low = missing / 2;
         let low_c = (low_c - extra_low * 12).max(0);
         let high_b = (low_c + Self::MIN_OCTAVES.max(octaves) * 12 - 1).min(127);
         let to_note = |v: i16| {

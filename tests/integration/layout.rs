@@ -82,3 +82,13 @@ fn staff_coordinates() {
     // Middle C ledger lines of the two staves must not cross.
     assert!(staff::y(Clef::Treble, StaffPosition(-2)) > staff::y(Clef::Bass, StaffPosition(10)));
 }
+
+#[test]
+fn padding_is_split_with_the_extra_octave_on_top() {
+    // G2..G4 spans C2..B4 (3 octaves); the 4th goes above, not below.
+    let range = KeyRange::covering(n(43), n(67));
+    assert_eq!((range.low(), range.high()), (n(36), n(83)));
+    // One octave needs three more: one below, two above.
+    let range = KeyRange::covering(n(60), n(62));
+    assert_eq!((range.low(), range.high()), (n(48), n(95)));
+}

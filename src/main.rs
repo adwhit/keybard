@@ -3,10 +3,12 @@ use std::process::ExitCode;
 
 use bevy::app::AppExit;
 use clap::Parser;
-use keybard::app::{self, Backend, Logging, MidiInput, Options};
+use directories::ProjectDirs;
+use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
 use keybard::midi_file;
 use keybard::performance::PlayMode;
+use keybard::song::Seconds;
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum Mode {
@@ -41,8 +43,25 @@ struct Cli {
     #[arg(long)]
     no_midi: bool,
     /// Run without a window, GPU or sound; exits when the song finishes.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "snapshot")]
     headless: bool,
+    /// Render offscreen (no window) and save PNGs into this directory at each
+    /// --at time, then exit.
+    #[arg(long, value_name = "DIR")]
+    snapshot: Option<PathBuf>,
+    /// Song time in seconds to capture with --snapshot (repeatable).
+    #[arg(long = "at", value_name = "SECONDS", default_values_t = [4.0])]
+    snapshot_times: Vec<f32>,
+    /// Let the built-in autopilot play (Wait/Play modes) — handy as a demo.
+    #[arg(long)]
+    autopilot: bool,
+    /// Where to keep personal bests. Defaults to the user data directory in
+    /// windowed mode; headless and snapshot runs never touch it.
+    #[arg(long, value_name = "FILE")]
+    records: Option<PathBuf>,
+    /// Resolution multiplier for --snapshot images.
+    #[arg(long, default_value_t = 1.0)]
+    snapshot_scale: f32,
 }
 
 fn main() -> ExitCode {
@@ -58,6 +77,13 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let records = match (&cli.records, cli.headless || cli.snapshot.is_some()) {
+        (Some(path), _) => RecordStore::File(path.clone()),
+        (None, true) => RecordStore::Memory,
+        (None, false) => ProjectDirs::from("", "", "keybard").map_or(RecordStore::Memory, |dirs| {
+            RecordStore::File(dirs.data_dir().join("bests.tsv"))
+        }),
+    };
     let exit = app::run(Options {
         song,
         mode: cli.mode.into(),
@@ -66,12 +92,22 @@ fn main() -> ExitCode {
         } else {
             MidiInput::Enabled
         },
-        backend: if cli.headless {
-            Backend::Headless
-        } else {
-            Backend::Windowed
+        backend: match (&cli.snapshot, cli.headless) {
+            (Some(dir), _) => Backend::Offscreen(SnapshotPlan {
+                dir: dir.clone(),
+                times: cli.snapshot_times.iter().copied().map(Seconds).collect(),
+                scale: cli.snapshot_scale,
+            }),
+            (None, true) => Backend::Headless,
+            (None, false) => Backend::Windowed,
         },
         logging: Logging::Enabled,
+        player: if cli.autopilot {
+            Player::Autopilot
+        } else {
+            Player::Human
+        },
+        records,
     });
     match exit {
         AppExit::Success => ExitCode::SUCCESS,

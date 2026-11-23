@@ -7,6 +7,7 @@ pub mod layout;
 pub mod midi_file;
 pub mod music;
 pub mod performance;
+pub mod records;
 pub mod song;
 
 pub use error::Error;

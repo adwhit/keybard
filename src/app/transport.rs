@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use tracing::{debug, info};
 
 use super::audio::PlayTone;
-use super::{ActiveSong, Judge, Phase};
+use super::{ActiveSong, Feedback, Judge, Phase};
 use crate::layout;
 use crate::performance::PlayMode;
 use crate::song::Seconds;
@@ -139,6 +139,7 @@ pub(super) fn advance(
     song: Res<ActiveSong>,
     mut judge: ResMut<Judge>,
     mut tones: MessageWriter<PlayTone>,
+    mut feedback: MessageWriter<Feedback>,
 ) {
     if transport.state != PlayState::Playing {
         return;
@@ -159,6 +160,13 @@ pub(super) fn advance(
     if !advance.auto_played.is_empty() {
         debug!(count = advance.auto_played.len(), "auto-played notes");
     }
+    feedback.write_batch(
+        advance
+            .auto_played
+            .iter()
+            .map(|id| Feedback::AutoPlayed(*id))
+            .chain(advance.missed.iter().map(|id| Feedback::Missed(*id))),
+    );
     if transport.time > song.duration() + OUTRO {
         transport.state = PlayState::Finished;
         info!(score = ?judge.0.score(), "song finished");

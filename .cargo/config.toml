@@ -1,0 +1,5 @@
+[env]
+# Every app test runs a whole Bevy app; beyond ~4-6 at once they contend for
+# Bevy's global task pools and the suite gets *slower* (measured: 10 threads
+# 2.3s, 6 threads 1.1s).
+RUST_TEST_THREADS = "6"

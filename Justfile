@@ -32,3 +32,8 @@ play-midi FILE *ARGS:
 # Run a whole song headlessly (no window, GPU or audio) and exit at the end
 smoke SONG="scale":
     cargo run -- --headless --no-midi --song {{SONG}}
+
+# Render offscreen PNGs (no window) at the given song times into target/snapshots
+snapshot SONG="ode-to-joy" *TIMES="--at 1 --at 6 --at 12":
+    rm -rf target/snapshots && mkdir -p target/snapshots
+    cargo run -- --no-midi --song {{SONG}} --snapshot target/snapshots {{TIMES}}

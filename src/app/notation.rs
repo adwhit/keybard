@@ -25,6 +25,7 @@ pub struct NoteHead(pub NoteId);
 struct HeadMaterials {
     ink: Handle<ColorMaterial>,
     missed: Handle<ColorMaterial>,
+    played: Handle<ColorMaterial>,
     right: Handle<ColorMaterial>,
     left: Handle<ColorMaterial>,
 }
@@ -123,6 +124,7 @@ fn spawn_heads(
     let head_materials = HeadMaterials {
         ink: materials.add(palette::INK),
         missed: materials.add(palette::MISSED),
+        played: materials.add(palette::PLAYED_INK),
         right: materials.add(palette::hand(Hand::Right)),
         left: materials.add(palette::hand(Hand::Left)),
     };
@@ -181,10 +183,14 @@ fn update_heads(
             transform.translation.y = staff::y(clef, position);
             let wanted = if note.is_sounding_at(now) {
                 materials.for_hand(note.hand)
-            } else if judge.0.status(head.0) == NoteStatus::Missed {
-                materials.missed.clone()
             } else {
-                materials.ink.clone()
+                match judge.0.status(head.0) {
+                    NoteStatus::Missed => materials.missed.clone(),
+                    NoteStatus::Hit(_) => materials.played.clone(),
+                    NoteStatus::Pending | NoteStatus::AutoPlayed | NoteStatus::Skipped => {
+                        materials.ink.clone()
+                    }
+                }
             };
             if material.0 != wanted {
                 material.0 = wanted;

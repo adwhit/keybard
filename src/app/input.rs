@@ -9,9 +9,9 @@ use tracing::{debug, info, warn};
 
 use super::audio::PlayTone;
 use super::transport::{PlayState, Transport};
-use super::{ActiveSong, Judge, MidiInput, Phase};
+use super::{ActiveSong, Feedback, Judge, MidiInput, Phase};
 use crate::music::MidiNote;
-use crate::performance::PlayMode;
+use crate::performance::PressOutcome;
 use crate::song::Seconds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub enum KeyEdge {
 pub enum InputSource {
     ComputerKeyboard,
     Midi,
+    Autopilot,
 }
 
 /// A piano key went down or up.
@@ -162,6 +163,7 @@ fn judge_presses(
     transport: Res<Transport>,
     song: Res<ActiveSong>,
     mut tones: MessageWriter<PlayTone>,
+    mut feedback: MessageWriter<Feedback>,
 ) {
     inputs.read().for_each(|input| match input.edge {
         KeyEdge::Down => {
@@ -170,11 +172,14 @@ fn judge_presses(
                 note: input.note,
                 duration: PRESS_TONE,
             });
-            let judging =
-                transport.mode != PlayMode::Listen && transport.state == PlayState::Playing;
+            let judging = transport.mode.is_scored() && transport.state == PlayState::Playing;
             if judging {
-                let hit = judge.0.press(&song.0, input.note, transport.time);
-                debug!(note = %input.note, source = ?input.source, ?hit, "judged press");
+                let outcome = judge.0.press(&song.0, input.note, transport.time);
+                debug!(note = %input.note, source = ?input.source, ?outcome, "judged press");
+                feedback.write(match outcome {
+                    PressOutcome::Hit(judgement) => Feedback::Hit(judgement),
+                    PressOutcome::Wrong => Feedback::Wrong(input.note),
+                });
             }
         }
         KeyEdge::Up => {

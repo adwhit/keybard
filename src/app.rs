@@ -8,12 +8,17 @@
 //! drive it.
 
 mod audio;
+mod autopilot;
+pub mod effects;
 pub mod falling;
-mod hud;
+pub mod hud;
 pub mod input;
 pub mod notation;
 pub mod palette;
 pub mod piano;
+pub mod results;
+mod snapshot;
+mod textures;
 pub mod transport;
 
 use std::time::Duration;
@@ -21,19 +26,25 @@ use std::time::Duration;
 use bevy::app::{PluginGroupBuilder, ScheduleRunnerPlugin};
 use bevy::audio::AudioPlugin;
 use bevy::camera::ScalingMode;
+use bevy::ecs::schedule::SingleThreadedExecutor;
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::WgpuSettings;
+use bevy::time::TimeUpdateStrategy;
 use bevy::window::{ExitCondition, WindowResolution};
 use bevy::winit::WinitPlugin;
 use tracing::info;
 
 pub use audio::PlayTone;
+pub use autopilot::jitter as autopilot_jitter;
+pub use results::RecordStore;
+pub use snapshot::SnapshotPlan;
 
 use crate::layout::{self, KeyRange};
-use crate::performance::{Performance, PlayMode};
-use crate::song::Song;
+use crate::music::MidiNote;
+use crate::performance::{Judgement, Performance, PlayMode};
+use crate::song::{NoteId, Song};
 use transport::{PlayState, Transport};
 
 /// The song being played.
@@ -43,6 +54,18 @@ pub struct ActiveSong(pub Song);
 /// Judgement state for the active song.
 #[derive(Resource)]
 pub struct Judge(pub Performance);
+
+/// What just happened, for visual and audio feedback. Emitted during
+/// [`Phase::Simulate`].
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub enum Feedback {
+    Hit(Judgement),
+    /// Played by the computer (Listen mode).
+    AutoPlayed(NoteId),
+    Missed(NoteId),
+    /// A press that matched no note.
+    Wrong(MidiNote),
+}
 
 /// The span of piano keys on screen.
 #[derive(Resource, Clone, Copy)]
@@ -59,13 +82,16 @@ pub enum Phase {
     Present,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Backend {
     /// A real window with rendering and sound.
     Windowed,
     /// No window, GPU or audio device. Scene entities are still spawned and
     /// updated, so their state can be inspected.
     Headless,
+    /// Render on the GPU into an image (no window) and save PNG snapshots at
+    /// the planned song times, then exit. The clock runs at a fixed 60fps.
+    Offscreen(SnapshotPlan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +100,14 @@ pub enum Logging {
     /// Needed when building several apps in one process (e.g. tests), since
     /// the global tracing subscriber can only be installed once.
     Disabled,
+}
+
+/// Who presses the keys in Wait and Play modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Player {
+    Human,
+    /// The built-in autopilot plays (with slight timing jitter).
+    Autopilot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,11 +122,13 @@ pub struct Options {
     pub midi_input: MidiInput,
     pub backend: Backend,
     pub logging: Logging,
+    pub player: Player,
+    pub records: RecordStore,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
 
-fn default_plugins(backend: Backend, logging: Logging, title: &str) -> PluginGroupBuilder {
+fn default_plugins(backend: &Backend, logging: Logging, title: &str) -> PluginGroupBuilder {
     let plugins = match backend {
         Backend::Windowed => DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -122,6 +158,15 @@ fn default_plugins(backend: Backend, logging: Logging, title: &str) -> PluginGro
             .disable::<WinitPlugin>()
             .disable::<AudioPlugin>()
             .add(ScheduleRunnerPlugin::run_loop(HEADLESS_FRAME)),
+        Backend::Offscreen(_) => DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: None,
+                exit_condition: ExitCondition::DontExit,
+                ..default()
+            })
+            .disable::<WinitPlugin>()
+            .disable::<AudioPlugin>()
+            .add(ScheduleRunnerPlugin::run_loop(Duration::ZERO)),
     };
     match logging {
         Logging::Enabled => plugins,
@@ -137,7 +182,7 @@ pub fn build(options: Options) -> App {
 
     let mut app = App::new();
     app.add_plugins(default_plugins(
-        options.backend,
+        &options.backend,
         options.logging,
         &options.song.title,
     ));
@@ -155,12 +200,16 @@ pub fn build(options: Options) -> App {
         .insert_resource(Transport::new(options.mode))
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
+        .add_message::<Feedback>()
         .configure_sets(
             Update,
             (Phase::Input, Phase::Simulate, Phase::Present).chain(),
         )
         .add_systems(Startup, spawn_camera)
         .add_plugins((
+            textures::plugin,
+            effects::plugin,
+            results::plugin(options.records),
             transport::plugin,
             input::plugin(options.midi_input),
             piano::plugin,
@@ -168,12 +217,28 @@ pub fn build(options: Options) -> App {
             notation::plugin,
             hud::plugin,
         ));
+    if options.player == Player::Autopilot {
+        app.add_plugins(autopilot::plugin);
+    }
     match options.backend {
         Backend::Windowed => {
             app.add_plugins(audio::plugin);
         }
         Backend::Headless => {
             app.add_systems(Update, exit_when_finished.after(Phase::Present));
+            // Headless worlds are tiny: thread hand-offs cost more than they
+            // save, and many apps stepped in parallel (tests) fight over the
+            // shared task pools.
+            app.world_mut()
+                .resource_mut::<Schedules>()
+                .iter_mut()
+                .for_each(|(_, schedule)| {
+                    schedule.set_executor(SingleThreadedExecutor::new());
+                });
+        }
+        Backend::Offscreen(plan) => {
+            app.insert_resource(TimeUpdateStrategy::ManualDuration(HEADLESS_FRAME))
+                .add_plugins(snapshot::plugin(plan));
         }
     }
     app
@@ -196,9 +261,11 @@ fn exit_when_finished(
     }
 }
 
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
+fn spawn_camera(mut commands: Commands, offscreen: Option<Res<snapshot::OffscreenTarget>>) {
+    let mut camera = commands.spawn((
         Camera2d,
+        // UI must follow this camera even when it renders offscreen.
+        IsDefaultUiCamera,
         Projection::Orthographic(OrthographicProjection {
             scaling_mode: ScalingMode::AutoMin {
                 min_width: layout::CANVAS_WIDTH,
@@ -207,4 +274,7 @@ fn spawn_camera(mut commands: Commands) {
             ..OrthographicProjection::default_2d()
         }),
     ));
+    if let Some(target) = offscreen {
+        camera.insert(snapshot::render_target(&target));
+    }
 }

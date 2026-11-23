@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 use super::input::HeldKeys;
+use super::textures::Textures;
 use super::transport::Transport;
 use super::{ActiveSong, Keys, Phase, palette};
 use crate::layout::{self, KeyGeometry};
@@ -24,7 +25,8 @@ const KEY_GAP: f32 = 1.0;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(Startup, spawn_keys)
-        .add_systems(Update, (color_keys, draw_hit_line).in_set(Phase::Present));
+        .add_systems(Startup, spawn_hit_line)
+        .add_systems(Update, (color_keys, pulse_hit_line).in_set(Phase::Present));
 }
 
 fn spawn_keys(mut commands: Commands, keys: Res<Keys>) {
@@ -72,8 +74,48 @@ fn spawn_key(commands: &mut Commands, note: MidiNote, geometry: KeyGeometry) {
     }
 }
 
+/// How a key is lit this frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyLight {
+    Idle,
+    /// The song is playing this note (a hint in Wait/Play, the performance in Listen).
+    Cue(Hand),
+    /// The player is holding it and it's a right note.
+    Correct(Hand),
+    /// The player is holding it but nothing is playing there.
+    Stray,
+}
+
+impl KeyLight {
+    fn of(held: bool, sounding: Option<Hand>) -> Self {
+        match (held, sounding) {
+            (true, Some(hand)) => Self::Correct(hand),
+            (true, None) => Self::Stray,
+            (false, Some(hand)) => Self::Cue(hand),
+            (false, None) => Self::Idle,
+        }
+    }
+
+    fn color(self, key: KeyColor) -> Color {
+        match (self, key) {
+            (Self::Idle, KeyColor::White) => palette::WHITE_KEY,
+            (Self::Idle, KeyColor::Black) => palette::BLACK_KEY,
+            (Self::Cue(hand), _) => palette::hand(hand),
+            (Self::Correct(hand), _) => palette::hand_lit(hand),
+            (Self::Stray, _) => palette::PRESSED,
+        }
+    }
+
+    fn is_pressed(self) -> bool {
+        matches!(self, Self::Correct(_) | Self::Stray)
+    }
+}
+
+/// Pressed keys sink by this much.
+const KEY_TRAVEL: f32 = 4.0;
+
 fn color_keys(
-    mut keys: Query<(&PianoKey, &mut Sprite)>,
+    mut keys: Query<(&PianoKey, &mut Sprite, &mut Transform)>,
     held: Res<HeldKeys>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
@@ -85,24 +127,48 @@ fn color_keys(
         .filter(|n| n.is_sounding_at(transport.time))
         .map(|n| (n.pitch, n.hand))
         .collect();
-    keys.iter_mut().for_each(|(key, mut sprite)| {
-        sprite.color = if held.0.contains(&key.note) {
-            palette::PRESSED
-        } else if let Some(hand) = sounding.get(&key.note) {
-            palette::hand(*hand)
-        } else {
-            match key.color {
-                KeyColor::White => palette::WHITE_KEY,
-                KeyColor::Black => palette::BLACK_KEY,
-            }
-        };
-    });
+    keys.iter_mut()
+        .for_each(|(key, mut sprite, mut transform)| {
+            let light = KeyLight::of(held.0.contains(&key.note), sounding.get(&key.note).copied());
+            sprite.color = light.color(key.color);
+            // Pressed keys sink, opening a dark sliver above them.
+            transform.translation.y = if light.is_pressed() {
+                layout::HIT_LINE - KEY_TRAVEL
+            } else {
+                layout::HIT_LINE
+            };
+        });
 }
 
-fn draw_hit_line(mut gizmos: Gizmos) {
-    gizmos.line_2d(
-        Vec2::new(layout::LEFT, layout::HIT_LINE + 1.0),
-        Vec2::new(layout::RIGHT, layout::HIT_LINE + 1.0),
-        palette::HIT_LINE,
-    );
+#[derive(Component)]
+struct HitLine;
+
+fn spawn_hit_line(mut commands: Commands, textures: Res<Textures>) {
+    // Soft glow band plus a crisp core line.
+    commands.spawn((
+        HitLine,
+        Sprite {
+            image: textures.glow.clone(),
+            color: palette::HIT_LINE.with_alpha(0.35),
+            custom_size: Some(Vec2::new(layout::CANVAS_WIDTH * 1.4, 26.0)),
+            ..default()
+        },
+        Transform::from_xyz(0.0, layout::HIT_LINE, 11.5),
+    ));
+    commands.spawn((
+        Sprite::from_color(palette::HIT_LINE, Vec2::new(layout::CANVAS_WIDTH, 2.0)),
+        Transform::from_xyz(0.0, layout::HIT_LINE + 1.0, 11.6),
+    ));
+}
+
+/// The hit line breathes with the beat.
+fn pulse_hit_line(
+    mut line: Single<&mut Sprite, With<HitLine>>,
+    transport: Res<Transport>,
+    song: Res<ActiveSong>,
+) {
+    let beat = transport.time.0 / song.0.tempo.seconds_per_beat.0;
+    let phase = beat.rem_euclid(1.0);
+    let strength = 0.25 + 0.25 * (1.0 - phase).powi(3);
+    line.color = line.color.with_alpha(strength);
 }
