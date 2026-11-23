@@ -75,6 +75,14 @@ misses or wrong notes) raises the speed 5% ("SPEED 75%"), up to full tempo,
 and a messy pass holds it. Drilling your weakest bars from the results card
 starts at 70%.
 
+### Chord symbols
+
+Lead-sheet chord names (C, G7, Am, Bdim...) scroll above the treble staff
+wherever the harmony changes. Each stretch between bar lines and left-hand
+chord changes is scored against chord shapes by how long each note sounds, so
+passing notes don't flip the chord. A third the arrangement leaves out is
+filled in from the key, so a bare G-D in C major reads as G.
+
 ### Fingering
 
 Every note gets a recommended finger (1 = thumb ... 5 = pinky), computed for
@@ -210,6 +218,7 @@ Layout:
 - `src/records.rs`: personal bests and their TSV file
 - `src/achievements.rs`: achievement rules and persistence
 - `src/streak.rs`: per-day practice log and day streaks
+- `src/chords.rs`: chord naming and the song's chord progression
 - `src/key.rs`: key-signature inference and pitch spelling
 - `src/notation.rs`: where rests go (gaps split at bar lines into standard values)
 - `src/fingering.rs`: automatic fingering (dynamic programming, ergonomic costs)
@@ -225,7 +234,7 @@ Layout:
 
 Working: grand-staff notation (clefs, inferred key signatures with sharps or
 flats, accidentals only where needed, ledger lines, stems, flags, beams by
-beat, rests,
+beat, rests, chord symbols,
 bar lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
 bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a

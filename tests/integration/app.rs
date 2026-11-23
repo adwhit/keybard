@@ -1337,3 +1337,31 @@ fn wrong_notes_suggest_the_right_one() {
     // Two flashes: the wrong key and the wanted one.
     assert!(h.count::<KeyFlash>() >= 2);
 }
+
+#[test]
+fn chord_symbols_scroll_above_the_staff() {
+    use keybard::app::notation::ChordSymbol;
+    use keybard::chords::progression;
+    let song = keybard::builtin::BuiltinSong::JingleBells.load().unwrap();
+    let expected = progression(&song);
+    let mut h = Harness::new(song, PlayMode::Listen);
+    assert_eq!(h.count::<ChordSymbol>(), expected.len());
+    h.run_until(0.0);
+    let mut q = h
+        .world()
+        .query::<(&ChordSymbol, &Text2d, &Transform, &Visibility)>();
+    let first = q
+        .iter(h.app.world())
+        .find(|(c, ..)| c.at == expected[0].0)
+        .map(|(_, t, tr, v)| (t.0.clone(), tr.translation, *v))
+        .unwrap();
+    assert_eq!(first.0, "C");
+    assert_eq!(first.2, Visibility::Inherited);
+    assert!(
+        first.1.y
+            > layout::staff::y(
+                keybard::music::Clef::Treble,
+                keybard::music::StaffPosition::TOP_LINE
+            )
+    );
+}

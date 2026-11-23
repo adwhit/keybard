@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use super::songs::{SongLoad, SongScoped};
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
+use crate::chords::progression;
 use crate::layout::{self, staff};
 use crate::music::{Clef, StaffPosition, StemDirection};
 use crate::notation::{Rest, RestShape, beams, rests};
@@ -43,6 +44,15 @@ const MIN_BEAMED_STEM: f32 = 24.0;
 /// Most a beam may rise or fall end to end.
 const MAX_BEAM_SLOPE: f32 = 10.0;
 const BEAM_THICKNESS: f32 = 4.0;
+
+/// A chord symbol above the treble staff, at the time its harmony starts.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ChordSymbol {
+    pub at: Seconds,
+}
+
+/// Height of chord symbols, above the treble staff.
+const CHORD_Y: f32 = 358.0;
 
 /// Rests for the current song, with the staff each belongs on.
 #[derive(Resource, Debug, Default, Clone)]
@@ -122,7 +132,7 @@ pub fn plugin(app: &mut App) {
         .init_resource::<SongBeams>()
         .add_systems(
             Update,
-            (spawn_heads, find_rests, find_beams).in_set(SongLoad),
+            (spawn_heads, find_rests, find_beams, spawn_chords).in_set(SongLoad),
         )
         .add_systems(
             Update,
@@ -132,6 +142,7 @@ pub fn plugin(app: &mut App) {
                 draw_note_marks,
                 draw_rests,
                 draw_beams,
+                move_chords,
             )
                 .in_set(Phase::Present),
         );
@@ -356,6 +367,47 @@ fn find_rests(song: Res<ActiveSong>, mut found: ResMut<SongRests>) {
                 .map(move |rest| (clef_for(hand), rest))
         })
         .collect();
+}
+
+fn spawn_chords(mut commands: Commands, song: Res<ActiveSong>) {
+    let symbols = progression(&song.0)
+        .into_iter()
+        .map(|(at, symbol)| {
+            (
+                SongScoped,
+                ChordSymbol { at },
+                Text2d::new(symbol),
+                TextFont {
+                    font_size: FontSize::Px(17.0),
+                    ..default()
+                },
+                TextColor(palette::INK),
+                bevy::sprite::Anchor::BOTTOM_LEFT,
+                Transform::from_xyz(0.0, CHORD_Y, HEAD_Z),
+                Visibility::Hidden,
+            )
+        })
+        .collect::<Vec<_>>();
+    commands.spawn_batch(symbols);
+}
+
+fn move_chords(
+    transport: Res<Transport>,
+    mut symbols: Query<(&ChordSymbol, &mut Transform, &mut Visibility)>,
+) {
+    let now = transport.time;
+    symbols
+        .iter_mut()
+        .for_each(|(chord, mut transform, mut visibility)| {
+            // Symbols start just left of their first note.
+            let x = staff::x(chord.at - now) - HEAD_HALF_SIZE.x;
+            transform.translation.x = x;
+            visibility.set_if_neq(if staff::is_visible(x) {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            });
+        });
 }
 
 fn find_beams(song: Res<ActiveSong>, mut found: ResMut<SongBeams>) {

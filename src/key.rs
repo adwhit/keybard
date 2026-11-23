@@ -52,7 +52,8 @@ impl KeySignature {
         }
     }
 
-    fn contains(self, pitch_class: u8) -> bool {
+    /// Whether a pitch class (0 = C) belongs to the key's scale.
+    pub fn contains_pitch_class(self, pitch_class: u8) -> bool {
         Letter::ALL.iter().any(|letter| {
             let base = natural_semitone(*letter);
             let pc = match self.alteration(*letter) {
@@ -104,7 +105,7 @@ impl KeySignature {
         let fit = |key: Self| -> f32 {
             notes
                 .iter()
-                .filter(|(n, _)| key.contains(n.pitch_class().semitone()))
+                .filter(|(n, _)| key.contains_pitch_class(n.pitch_class().semitone()))
                 .map(|(_, w)| w)
                 .sum()
         };
