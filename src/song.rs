@@ -2,6 +2,7 @@
 
 use std::ops::{Add, Sub};
 
+use crate::dynamics::Velocity;
 use crate::error::Error;
 use crate::fingering::{self, Finger};
 use crate::key::KeySignature;
@@ -47,6 +48,8 @@ pub struct Note {
     pub hand: Hand,
     /// A finger written into the score, which the fingering respects.
     pub finger: Option<Finger>,
+    /// How hard the note is played.
+    pub velocity: Velocity,
 }
 
 impl Note {
@@ -309,6 +312,7 @@ pub fn parse_voice(text: &str, hand: Hand, tempo: Tempo) -> Result<Vec<Note>, Er
                     duration: tempo.to_seconds(beats),
                     hand,
                     finger,
+                    velocity: Velocity::DEFAULT,
                 }));
                 (notes, Beats(cursor.0 + beats.0))
             }

@@ -151,3 +151,22 @@ fn loads_from_disk_and_reports_missing_files() {
         Err(Error::Io { .. })
     ));
 }
+
+#[test]
+fn note_velocities_are_kept() {
+    let metrical = Timing::Metrical(u15::from(TPB));
+    let loud = ev(
+        0,
+        TrackEventKind::Midi {
+            channel: u4::from(0),
+            message: MidiMessage::NoteOn {
+                key: u7::from(62),
+                vel: u7::from(120),
+            },
+        },
+    );
+    let track = vec![on(0, 60), off(480, 60), loud, off(480, 62), end()];
+    let song = midi_file::parse("v", &encode(metrical, vec![track])).unwrap();
+    let velocities: Vec<u8> = song.notes().iter().map(|n| n.velocity.value()).collect();
+    assert_eq!(velocities, vec![90, 120]);
+}

@@ -9,6 +9,7 @@ use super::songs::{SongLoad, SongScoped};
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::chords::progression;
+use crate::dynamics::markings;
 use crate::layout::{self, staff};
 use crate::music::{Clef, StaffPosition, StemDirection};
 use crate::notation::{Rest, RestShape, beams, rests};
@@ -50,6 +51,15 @@ const BEAM_THICKNESS: f32 = 4.0;
 pub struct ChordSymbol {
     pub at: Seconds,
 }
+
+/// A dynamic marking (p, mf, f...) between the staves.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct DynamicMark {
+    pub at: Seconds,
+}
+
+/// Height of dynamic markings, between the staves.
+const DYNAMIC_Y: f32 = 262.0;
 
 /// Height of chord symbols, above the treble staff.
 const CHORD_Y: f32 = 358.0;
@@ -132,7 +142,14 @@ pub fn plugin(app: &mut App) {
         .init_resource::<SongBeams>()
         .add_systems(
             Update,
-            (spawn_heads, find_rests, find_beams, spawn_chords).in_set(SongLoad),
+            (
+                spawn_heads,
+                find_rests,
+                find_beams,
+                spawn_chords,
+                spawn_dynamics,
+            )
+                .in_set(SongLoad),
         )
         .add_systems(
             Update,
@@ -143,6 +160,7 @@ pub fn plugin(app: &mut App) {
                 draw_rests,
                 draw_beams,
                 move_chords,
+                move_dynamics,
             )
                 .in_set(Phase::Present),
         );
@@ -389,6 +407,46 @@ fn spawn_chords(mut commands: Commands, song: Res<ActiveSong>) {
         })
         .collect::<Vec<_>>();
     commands.spawn_batch(symbols);
+}
+
+fn spawn_dynamics(mut commands: Commands, song: Res<ActiveSong>) {
+    let marks = markings(&song.0)
+        .into_iter()
+        .map(|(at, level)| {
+            (
+                SongScoped,
+                DynamicMark { at },
+                Text2d::new(level.label()),
+                TextFont {
+                    font_size: FontSize::Px(15.0),
+                    ..default()
+                },
+                TextColor(palette::INK),
+                bevy::sprite::Anchor::CENTER_LEFT,
+                Transform::from_xyz(0.0, DYNAMIC_Y, HEAD_Z),
+                Visibility::Hidden,
+            )
+        })
+        .collect::<Vec<_>>();
+    commands.spawn_batch(marks);
+}
+
+fn move_dynamics(
+    transport: Res<Transport>,
+    mut marks: Query<(&DynamicMark, &mut Transform, &mut Visibility)>,
+) {
+    let now = transport.time;
+    marks
+        .iter_mut()
+        .for_each(|(mark, mut transform, mut visibility)| {
+            let x = staff::x(mark.at - now) - HEAD_HALF_SIZE.x;
+            transform.translation.x = x;
+            visibility.set_if_neq(if staff::is_visible(x) {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            });
+        });
 }
 
 fn move_chords(

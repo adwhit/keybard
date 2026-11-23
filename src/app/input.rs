@@ -10,6 +10,7 @@ use tracing::{debug, info, warn};
 use super::audio::PlayTone;
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, MidiInput, Phase};
+use crate::dynamics::Velocity;
 use crate::midi_port::{PortChoice, select_port};
 use crate::music::MidiNote;
 use crate::performance::PressOutcome;
@@ -34,6 +35,7 @@ pub struct NoteInput {
     pub note: MidiNote,
     pub edge: KeyEdge,
     pub source: InputSource,
+    pub velocity: Velocity,
 }
 
 /// Keys the player is currently holding.
@@ -45,7 +47,7 @@ pub struct HeldKeys(pub HashSet<MidiNote>);
 struct ComputerKeyboardBase(MidiNote);
 
 #[derive(Resource)]
-struct MidiReceiver(Receiver<(MidiNote, KeyEdge)>);
+struct MidiReceiver(Receiver<(MidiNote, KeyEdge, Velocity)>);
 
 /// Two-row "tracker" layout: Z-row is one octave, Q-row the next.
 const COMPUTER_KEYS: [(KeyCode, i16); 32] = [
@@ -152,6 +154,7 @@ fn computer_keyboard(
             note,
             edge,
             source: InputSource::ComputerKeyboard,
+            velocity: Velocity::DEFAULT,
         })
     });
     out.write_batch(events);
@@ -191,10 +194,11 @@ fn midi_status(rx: Res<MidiStatusReceiver>, mut status: ResMut<MidiStatus>) {
 }
 
 fn midi_keyboard(rx: Res<MidiReceiver>, mut out: MessageWriter<NoteInput>) {
-    out.write_batch(rx.0.try_iter().map(|(note, edge)| NoteInput {
+    out.write_batch(rx.0.try_iter().map(|(note, edge, velocity)| NoteInput {
         note,
         edge,
         source: InputSource::Midi,
+        velocity,
     }));
 }
 
@@ -213,6 +217,7 @@ fn judge_presses(
             tones.write(PlayTone {
                 note: input.note,
                 duration: PRESS_TONE,
+                velocity: input.velocity,
             });
             let judging = transport.mode.is_scored() && transport.state == PlayState::Playing;
             if judging {
@@ -236,13 +241,14 @@ fn judge_presses(
     });
 }
 
-fn parse_midi_message(bytes: &[u8]) -> Option<(MidiNote, KeyEdge)> {
+fn parse_midi_message(bytes: &[u8]) -> Option<(MidiNote, KeyEdge, Velocity)> {
     match *bytes {
         [status, key, velocity, ..] => {
             let note = MidiNote::new(key).ok()?;
+            let velocity_of = Velocity::new(velocity);
             match status & 0xF0 {
-                0x90 if velocity > 0 => Some((note, KeyEdge::Down)),
-                0x90 | 0x80 => Some((note, KeyEdge::Up)),
+                0x90 if velocity > 0 => Some((note, KeyEdge::Down, velocity_of)),
+                0x90 | 0x80 => Some((note, KeyEdge::Up, velocity_of)),
                 _ => None,
             }
         }
@@ -253,7 +259,7 @@ fn parse_midi_message(bytes: &[u8]) -> Option<(MidiNote, KeyEdge)> {
 /// Connect to the first MIDI input port on a background thread. The thread
 /// owns the connection and keeps it alive for the lifetime of the app.
 fn spawn_midi_listener(
-    tx: Sender<(MidiNote, KeyEdge)>,
+    tx: Sender<(MidiNote, KeyEdge, Velocity)>,
     status: Sender<MidiStatus>,
     choice: PortChoice,
 ) {

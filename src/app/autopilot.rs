@@ -66,6 +66,7 @@ fn play(
             note: song.0.note(*id).pitch,
             edge: KeyEdge::Up,
             source: InputSource::Autopilot,
+            velocity: song.0.note(*id).velocity,
         });
     });
     let presses: Vec<NoteId> = song
@@ -87,6 +88,7 @@ fn play(
             note: song.0.note(*id).pitch,
             edge: KeyEdge::Down,
             source: InputSource::Autopilot,
+            velocity: song.0.note(*id).velocity,
         });
     });
 }

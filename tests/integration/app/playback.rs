@@ -580,3 +580,42 @@ fn sight_reading_hides_the_bars_and_the_keyboard_cues() {
     h.tap(KeyCode::F6);
     assert_eq!(*h.world().resource::<View>(), View::Bars);
 }
+
+#[test]
+fn dynamics_are_marked_and_heard() {
+    use keybard::app::notation::DynamicMark;
+    use keybard::dynamics::{Velocity, markings};
+    use keybard::song::Note;
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let note = |pitch: u8, start: f32, velocity: u8| Note {
+        pitch: n(pitch),
+        start: Seconds(start),
+        duration: Seconds(4.0),
+        hand: Hand::Right,
+        finger: None,
+        velocity: Velocity::new(velocity),
+    };
+    let song = Song::new("dyn", tempo, vec![note(60, 0.0, 40), note(64, 4.0, 110)]).unwrap();
+    let expected = markings(&song).len();
+    let mut h = Harness::new(song, PlayMode::Listen);
+    assert_eq!(expected, 2);
+    assert_eq!(h.count::<DynamicMark>(), 2);
+    let texts = h.texts();
+    assert!(
+        texts.contains(&"p".to_owned()) && texts.contains(&"f".to_owned()),
+        "{texts:?}"
+    );
+
+    // The computer plays each note at its own velocity.
+    let mut heard = Vec::new();
+    while h.time().0 < 4.5 {
+        h.app.update();
+        heard.extend(
+            h.tones()
+                .iter()
+                .filter(|t| t.note.value() < 88)
+                .map(|t| t.velocity.value()),
+        );
+    }
+    assert_eq!(heard, vec![40, 110]);
+}

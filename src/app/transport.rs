@@ -5,6 +5,7 @@ use tracing::{debug, info};
 
 use super::audio::PlayTone;
 use super::{ActiveSong, Feedback, Judge, Phase};
+use crate::dynamics::Velocity;
 use crate::layout;
 use crate::music::MidiNote;
 use crate::performance::PlayMode;
@@ -196,6 +197,7 @@ pub fn advance(
             note: MidiNote::new(if accent { CLICK_ACCENT } else { CLICK })
                 .unwrap_or(MidiNote::MIDDLE_C),
             duration: CLICK_LENGTH,
+            velocity: Velocity::DEFAULT,
         });
         ticks.write(CountInTick(beat));
     });
@@ -205,6 +207,7 @@ pub fn advance(
                 note: MidiNote::new(if beat.downbeat { CLICK_ACCENT } else { CLICK })
                     .unwrap_or(MidiNote::MIDDLE_C),
                 duration: CLICK_LENGTH,
+                velocity: Velocity::DEFAULT,
             }
         }));
     }
@@ -215,6 +218,7 @@ pub fn advance(
         PlayTone {
             note: note.pitch,
             duration: Seconds(note.duration.0 / speed),
+            velocity: note.velocity,
         }
     }));
     if !advance.auto_played.is_empty() {

@@ -81,6 +81,13 @@ misses or wrong notes) raises the speed 5% ("SPEED 75%"), up to full tempo,
 and a messy pass holds it. Drilling your weakest bars from the results card
 starts at 70%.
 
+### Dynamics
+
+Every note keeps how hard it's played (MIDI velocity; built-in songs are
+mezzo-forte). The synth plays soft notes quieter, your MIDI keyboard's
+velocity is heard too, and the staff marks pp, p, mp, mf, f or ff between the
+staves wherever the bar-by-bar level changes.
+
 ### Chord symbols
 
 Lead-sheet chord names (C, G7, Am, Bdim...) scroll above the treble staff
@@ -232,6 +239,7 @@ Layout:
 - `src/achievements.rs`: achievement rules and persistence
 - `src/challenge.rs`: the daily challenge
 - `src/streak.rs`: per-day practice log and day streaks
+- `src/dynamics.rs`: velocity, dynamic levels and markings
 - `src/chords.rs`: chord naming and the song's chord progression
 - `src/key.rs`: key-signature inference and pitch spelling
 - `src/notation.rs`: where rests go (gaps split at bar lines into standard values)

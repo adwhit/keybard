@@ -6,6 +6,7 @@ use bevy::audio::{AddAudioSource, ChannelCount, Decodable, Sample, SampleRate, S
 use bevy::prelude::*;
 
 use super::Phase;
+use crate::dynamics::Velocity;
 use crate::music::MidiNote;
 use crate::song::Seconds;
 use crate::synth::{self, PianoVoice};
@@ -15,6 +16,7 @@ use crate::synth::{self, PianoVoice};
 pub struct PlayTone {
     pub note: MidiNote,
     pub duration: Seconds,
+    pub velocity: Velocity,
 }
 
 const VOLUME: f32 = 0.35;
@@ -81,13 +83,15 @@ fn play_tones(
     mut commands: Commands,
 ) {
     requests.read().for_each(|tone| {
+        // Relative to a mezzo-forte note, so the default sounds as before.
+        let loudness = (tone.velocity.gain() / Velocity::DEFAULT.gain()).min(1.6);
         let tone = PianoTone {
             frequency: tone.note.frequency(),
             held: Seconds(tone.duration.0.max(MIN_DURATION.0)),
         };
         commands.spawn((
             AudioPlayer(tones.add(tone)),
-            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(VOLUME)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(VOLUME * loudness)),
         ));
     });
 }

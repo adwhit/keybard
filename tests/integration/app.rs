@@ -111,6 +111,7 @@ impl Harness {
             note: n(note),
             edge,
             source: InputSource::Midi,
+            velocity: keybard::dynamics::Velocity::DEFAULT,
         });
         self.app.update();
     }

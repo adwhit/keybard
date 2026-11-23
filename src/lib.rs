@@ -5,6 +5,7 @@ pub mod app;
 pub mod builtin;
 pub mod challenge;
 pub mod chords;
+pub mod dynamics;
 pub mod error;
 pub mod fingering;
 pub mod key;

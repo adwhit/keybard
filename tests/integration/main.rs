@@ -5,6 +5,7 @@ mod achievements;
 mod app;
 mod challenge;
 mod chords;
+mod dynamics;
 mod fingering;
 mod key;
 mod layout;

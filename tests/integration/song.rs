@@ -62,6 +62,7 @@ fn songs_sort_notes_and_report_extent() {
         duration: Seconds(duration),
         hand: Hand::Right,
         finger: None,
+        velocity: keybard::dynamics::Velocity::DEFAULT,
     };
     let song = Song::new(
         "t",

@@ -6,6 +6,7 @@ use std::path::Path;
 use midly::{MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
 use tracing::{debug, info};
 
+use crate::dynamics::Velocity;
 use crate::error::Error;
 use crate::music::{Clef, MidiNote};
 use crate::song::{Hand, Note, Seconds, Song, Tempo};
@@ -84,11 +85,12 @@ struct RawNote {
     pitch: MidiNote,
     start: Tick,
     end: Tick,
+    velocity: Velocity,
 }
 
 #[derive(Debug, Clone, Copy)]
 enum NoteEdge {
-    On,
+    On(Velocity),
     Off,
 }
 
@@ -121,7 +123,7 @@ fn absolute_events(smf: &Smf<'_>) -> Vec<(Tick, Event)> {
                         TrackEventKind::Midi { channel, message } => {
                             let (key, edge) = match message {
                                 MidiMessage::NoteOn { key, vel } if vel.as_int() > 0 => {
-                                    (key, NoteEdge::On)
+                                    (key, NoteEdge::On(Velocity::new(vel.as_int())))
                                 }
                                 MidiMessage::NoteOn { key, .. }
                                 | MidiMessage::NoteOff { key, .. } => (key, NoteEdge::Off),
@@ -148,7 +150,7 @@ fn absolute_events(smf: &Smf<'_>) -> Vec<(Tick, Event)> {
 
 /// Pair note-on/note-off events into notes.
 fn pair_notes(events: &[(Tick, Event)]) -> Vec<RawNote> {
-    let mut open: HashMap<(usize, u8, MidiNote), Tick> = HashMap::new();
+    let mut open: HashMap<(usize, u8, MidiNote), (Tick, Velocity)> = HashMap::new();
     events
         .iter()
         .filter_map(|&(tick, event)| match event {
@@ -156,9 +158,9 @@ fn pair_notes(events: &[(Tick, Event)]) -> Vec<RawNote> {
                 track,
                 channel,
                 pitch,
-                edge: NoteEdge::On,
+                edge: NoteEdge::On(velocity),
             } => {
-                open.insert((track, channel, pitch), tick);
+                open.insert((track, channel, pitch), (tick, velocity));
                 None
             }
             Event::Note {
@@ -166,12 +168,15 @@ fn pair_notes(events: &[(Tick, Event)]) -> Vec<RawNote> {
                 channel,
                 pitch,
                 edge: NoteEdge::Off,
-            } => open.remove(&(track, channel, pitch)).map(|start| RawNote {
-                track,
-                pitch,
-                start,
-                end: tick,
-            }),
+            } => open
+                .remove(&(track, channel, pitch))
+                .map(|(start, velocity)| RawNote {
+                    track,
+                    pitch,
+                    start,
+                    end: tick,
+                    velocity,
+                }),
             Event::Tempo(_) | Event::TimeSignature(_) => None,
         })
         .collect()
@@ -237,6 +242,7 @@ pub fn parse(title: &str, bytes: &[u8]) -> Result<Song, Error> {
                 duration: tempo_map.to_seconds(n.end) - start,
                 hand: hand_of(n),
                 finger: None,
+                velocity: n.velocity,
             }
         })
         .collect();
