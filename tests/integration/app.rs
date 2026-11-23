@@ -238,6 +238,7 @@ fn listen_mode_plays_tones_and_lights_keys() {
             h.tones()
         })
         .map(|t| t.note.value())
+        .filter(|v| *v < 88) // skip the count-in clicks
         .collect();
     assert!(played.starts_with(&[48, 60]), "got {played:?}");
     assert!(played.contains(&64) && played.contains(&67));
@@ -336,7 +337,7 @@ fn transport_controls() {
     assert!(h.transport().speed.get() > before);
 
     h.tap(KeyCode::ArrowRight);
-    assert!(h.time().0 > 2.0, "seeked forward to {:?}", h.time());
+    assert!(h.time().0 > 1.0, "seeked forward to {:?}", h.time());
     assert_eq!(h.status(C4), NoteStatus::Skipped);
 
     h.tap(KeyCode::Backspace);
@@ -553,4 +554,52 @@ fn practising_one_hand_ghosts_and_autoplays_the_other() {
     assert_eq!(score.hits(), 3, "the autopilot only plays the right hand");
     assert_eq!((score.missed, score.wrong), (0, 0));
     assert_eq!(h.status(C3), NoteStatus::AutoPlayed);
+}
+
+#[test]
+fn a_bar_of_count_in_clicks_and_numbers_before_the_music() {
+    use keybard::app::transport::CountInTick;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    // 60bpm 4/4: a bar is 4s, longer than the fall, so it sets the lead-in.
+    assert!(
+        (h.time().0 + 4.0).abs() < 0.05,
+        "starts a bar early: {:?}",
+        h.time()
+    );
+
+    let mut beats = Vec::new();
+    let mut clicks = Vec::new();
+    while h.time().0 < 0.0 {
+        h.app.update();
+        let ticks = h.world().resource::<Messages<CountInTick>>();
+        let new: Vec<u8> = ticks
+            .iter_current_update_messages()
+            .map(|t| t.0.remaining)
+            .collect();
+        clicks.extend(
+            h.tones()
+                .iter()
+                .map(|t| t.note.value())
+                .filter(|v| *v >= 88),
+        );
+        new.iter().for_each(|beat| {
+            assert!(
+                h.texts().contains(&beat.to_string()),
+                "countdown {beat} shown"
+            );
+        });
+        beats.extend(new);
+    }
+    assert_eq!(
+        beats,
+        vec![3, 2, 1],
+        "beat 4 is the starting instant itself"
+    );
+    assert_eq!(clicks.len(), 3);
+
+    h.tap(KeyCode::Backspace);
+    assert!(
+        (h.time().0 + 4.0).abs() < 0.05,
+        "restart goes back to the count-in"
+    );
 }

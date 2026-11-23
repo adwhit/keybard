@@ -41,6 +41,12 @@ single track the split is at middle C.
 - **Wait**: the clock stops at each note until you play it (all notes of a chord).
 - **Play**: the clock keeps running. Notes you miss by more than 0.2s count as missed.
 
+### Count-in
+
+Every start, restart and replay begins with at least a bar of lead-in. A
+metronome clicks the last bar (accent on the first beat) while a big
+countdown shows the beats left before the first note.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand
@@ -131,7 +137,7 @@ Layout:
 Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, bar
 lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, one-hand practice, hit effects, an autopilot, MIDI file and MIDI device input, and
+bests, one-hand practice, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and
 sine-wave audio.
 
 Not yet done: key signatures and flats (all accidentals are written as

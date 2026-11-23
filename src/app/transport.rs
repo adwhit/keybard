@@ -6,8 +6,9 @@ use tracing::{debug, info};
 use super::audio::PlayTone;
 use super::{ActiveSong, Feedback, Judge, Phase};
 use crate::layout;
+use crate::music::MidiNote;
 use crate::performance::PlayMode;
-use crate::song::Seconds;
+use crate::song::{CountIn, Seconds, Tempo};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayState {
@@ -40,30 +41,41 @@ pub struct Transport {
     pub state: PlayState,
     pub speed: Speed,
     pub mode: PlayMode,
+    /// Where the clock starts: long enough for the first notes to fall into
+    /// view and for a full bar of count-in.
+    pub start: Seconds,
 }
+
+/// A beat of the count-in, for display and the metronome click.
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub struct CountInTick(pub CountIn);
 
 const SEEK_STEP: Seconds = Seconds(5.0);
 /// Linger this long after the last note before declaring the song finished.
 const OUTRO: Seconds = Seconds(1.5);
 
 impl Transport {
-    pub fn new(mode: PlayMode) -> Self {
+    pub fn new(mode: PlayMode, tempo: Tempo) -> Self {
+        let lead_in = layout::fall_lookahead().0.max(tempo.bar_length().0);
+        let start = Seconds(-lead_in);
         Self {
-            time: Self::start_time(),
+            time: start,
             state: PlayState::Playing,
             speed: Speed(1.0),
             mode,
+            start,
         }
-    }
-
-    /// Start with the first notes just entering the top of the falling area.
-    fn start_time() -> Seconds {
-        Seconds(-layout::fall_lookahead().0)
     }
 }
 
+/// Metronome pitches: accented downbeat, then the other beats.
+const CLICK_ACCENT: u8 = 93; // A6
+const CLICK: u8 = 88; // E6
+const CLICK_LENGTH: Seconds = Seconds(0.05);
+
 pub fn plugin(app: &mut App) {
-    app.add_systems(Update, (controls, advance).chain().in_set(Phase::Simulate));
+    app.add_message::<CountInTick>()
+        .add_systems(Update, (controls, advance).chain().in_set(Phase::Simulate));
 }
 
 fn controls(
@@ -83,7 +95,7 @@ fn controls(
             PlayState::Paused => PlayState::Playing,
             PlayState::Finished => {
                 judge.0.reset(song);
-                transport.time = Transport::start_time();
+                transport.time = transport.start;
                 PlayState::Playing
             }
         };
@@ -91,7 +103,7 @@ fn controls(
     }
     if keys.just_pressed(KeyCode::Backspace) {
         judge.0.reset(song);
-        transport.time = Transport::start_time();
+        transport.time = transport.start;
         transport.state = PlayState::Playing;
         info!("restarted song");
     }
@@ -104,7 +116,7 @@ fn controls(
     .map(|(_, d)| d)
     .sum::<f32>();
     if seek != 0.0 {
-        let target = (transport.time.0 + seek).clamp(Transport::start_time().0, song.duration().0);
+        let target = (transport.time.0 + seek).clamp(transport.start.0, song.duration().0);
         transport.time = Seconds(target);
         judge.0.seek(song, transport.time);
         if transport.state == PlayState::Finished {
@@ -146,6 +158,7 @@ pub(super) fn advance(
     mut judge: ResMut<Judge>,
     mut tones: MessageWriter<PlayTone>,
     mut feedback: MessageWriter<Feedback>,
+    mut ticks: MessageWriter<CountInTick>,
 ) {
     if transport.state != PlayState::Playing {
         return;
@@ -154,6 +167,15 @@ pub(super) fn advance(
     let from = transport.time;
     let to = Seconds(from.0 + time.delta_secs() * transport.speed.get());
     let advance = judge.0.advance(song, transport.mode, from, to);
+    song.tempo.count_in(from, advance.time).for_each(|beat| {
+        let accent = beat.remaining == song.tempo.beats_per_bar;
+        tones.write(PlayTone {
+            note: MidiNote::new(if accent { CLICK_ACCENT } else { CLICK })
+                .unwrap_or(MidiNote::MIDDLE_C),
+            duration: CLICK_LENGTH,
+        });
+        ticks.write(CountInTick(beat));
+    });
     transport.time = advance.time;
     let speed = transport.speed.get();
     tones.write_batch(advance.auto_played.iter().map(|id| {

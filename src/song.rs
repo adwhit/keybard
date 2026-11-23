@@ -80,6 +80,25 @@ impl Tempo {
     pub fn bar_length(self) -> Seconds {
         self.to_seconds(Beats(f32::from(self.beats_per_bar)))
     }
+
+    /// Count-in beats (one bar before time zero) that fall in `(from, to]`.
+    pub fn count_in(self, from: Seconds, to: Seconds) -> impl Iterator<Item = CountIn> {
+        let beat = self.seconds_per_beat.0;
+        (1..=self.beats_per_bar)
+            .rev()
+            .map(move |remaining| CountIn {
+                remaining,
+                at: Seconds(-f32::from(remaining) * beat),
+            })
+            .filter(move |c| from < c.at && c.at <= to)
+    }
+}
+
+/// One click of the count-in: `remaining` beats until the music starts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CountIn {
+    pub remaining: u8,
+    pub at: Seconds,
 }
 
 #[derive(Debug, Clone, PartialEq)]

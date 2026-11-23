@@ -199,7 +199,7 @@ pub fn build(options: Options) -> App {
     app.insert_resource(ClearColor(palette::BACKGROUND))
         .insert_resource(Keys(keys))
         .insert_resource(Judge(performance))
-        .insert_resource(Transport::new(options.mode))
+        .insert_resource(Transport::new(options.mode, options.song.tempo))
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
         .add_message::<Feedback>()

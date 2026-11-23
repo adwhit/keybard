@@ -120,3 +120,35 @@ fn ode_to_joy_is_sixteen_bars() {
         .fold(0.0, f32::max);
     assert!((right_end - song.duration().0).abs() < 1e-3);
 }
+
+#[test]
+fn count_in_beats_land_in_the_bar_before_the_music() {
+    use keybard::song::CountIn;
+    let tempo = Tempo::from_bpm(120.0, 4); // 0.5s beats
+    let all: Vec<CountIn> = tempo.count_in(Seconds(-10.0), Seconds(0.0)).collect();
+    let summary: Vec<(u8, f32)> = all.iter().map(|c| (c.remaining, c.at.0)).collect();
+    assert_eq!(summary, vec![(4, -2.0), (3, -1.5), (2, -1.0), (1, -0.5)]);
+
+    // Only beats crossed in (from, to] are reported, so each fires once.
+    let some: Vec<u8> = tempo
+        .count_in(Seconds(-1.6), Seconds(-1.0))
+        .map(|c| c.remaining)
+        .collect();
+    assert_eq!(some, vec![3, 2]);
+    assert_eq!(tempo.count_in(Seconds(-1.0), Seconds(-0.9)).count(), 0);
+    assert_eq!(
+        tempo.count_in(Seconds(0.0), Seconds(5.0)).count(),
+        0,
+        "none once playing"
+    );
+}
+
+#[test]
+fn count_in_follows_the_time_signature() {
+    let waltz = Tempo::from_bpm(60.0, 3);
+    let beats: Vec<u8> = waltz
+        .count_in(Seconds(-10.0), Seconds(0.0))
+        .map(|c| c.remaining)
+        .collect();
+    assert_eq!(beats, vec![3, 2, 1]);
+}

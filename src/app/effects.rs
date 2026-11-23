@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::sprite::Text2dShadow;
 
 use super::textures::Textures;
+use super::transport::CountInTick;
 use super::{ActiveSong, Feedback, Judge, Keys, Phase, palette};
 use crate::layout;
 use crate::performance::Timing;
@@ -75,7 +76,7 @@ pub fn plugin(app: &mut App) {
     app.insert_resource(Rng(0x9E37_79B9)).add_systems(
         Update,
         (
-            (spawn_from_feedback, combo_milestones),
+            (spawn_from_feedback, combo_milestones, count_in),
             (age_ephemerals, move_particles, animate_popups, fade_flashes),
         )
             .chain()
@@ -243,6 +244,38 @@ fn combo_milestones(mut commands: Commands, judge: Res<Judge>, mut last_combo: L
         );
     }
     *last_combo = combo;
+}
+
+/// The current count-in number; each new beat replaces the last.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct CountdownNumber;
+
+/// Big countdown numbers in the middle of the falling area.
+fn count_in(
+    mut commands: Commands,
+    mut ticks: MessageReader<CountInTick>,
+    shown: Query<Entity, With<CountdownNumber>>,
+) {
+    let Some(tick) = ticks.read().last() else {
+        return;
+    };
+    shown.iter().for_each(|e| commands.entity(e).despawn());
+    commands.spawn((
+        CountdownNumber,
+        Popup {
+            rise: 0.0,
+            origin_y: -40.0,
+            pop: 1.0,
+        },
+        Ephemeral::new(0.5),
+        Text2d::new(tick.0.remaining.to_string()),
+        TextFont {
+            font_size: FontSize::Px(80.0),
+            ..default()
+        },
+        TextColor(palette::HUD_TEXT),
+        Transform::from_xyz(0.0, -40.0, POPUP_Z),
+    ));
 }
 
 fn age_ephemerals(
