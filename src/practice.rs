@@ -2,6 +2,32 @@
 
 use crate::song::{Seconds, Tempo};
 
+/// The 0-based first bar of the `window`-bar stretch with the lowest
+/// average accuracy, ignoring bars with nothing judged. `None` when there's
+/// nothing to improve.
+pub fn weakest_section(accuracy: &[Option<f32>], window: usize) -> Option<usize> {
+    let window = window.max(1);
+    let last_start = accuracy.len().saturating_sub(window);
+    (0..=last_start)
+        .filter_map(|start| {
+            let judged: Vec<f32> = accuracy[start..(start + window).min(accuracy.len())]
+                .iter()
+                .flatten()
+                .copied()
+                .collect();
+            (!judged.is_empty()).then(|| (start, judged.iter().sum::<f32>() / judged.len() as f32))
+        })
+        .fold(
+            None,
+            |best: Option<(usize, f32)>, (start, mean)| match best {
+                Some((_, best_mean)) if best_mean <= mean => best,
+                _ => Some((start, mean)),
+            },
+        )
+        .filter(|(_, mean)| *mean < 1.0 - 1e-6)
+        .map(|(start, _)| start)
+}
+
 /// A bar-aligned stretch of song time to repeat.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LoopRegion {

@@ -33,3 +33,41 @@ fn wrapping_rewinds_to_a_lead_in_before_the_start() {
     assert_eq!(region.wrap(Seconds(8.0), lead), Some(Seconds(1.5)));
     assert_eq!(region.wrap(Seconds(8.3), lead), Some(Seconds(1.5)));
 }
+
+#[test]
+fn weakest_section_is_the_worst_window_of_bars() {
+    use keybard::practice::weakest_section;
+    let acc = [
+        Some(1.0),
+        Some(0.9),
+        Some(0.4),
+        Some(0.5),
+        Some(0.8),
+        Some(1.0),
+    ];
+    assert_eq!(weakest_section(&acc, 2), Some(2), "bars 3-4 (0-based 2)");
+    assert_eq!(weakest_section(&acc, 4), Some(1));
+}
+
+#[test]
+fn weakest_section_ignores_unplayed_bars_and_perfect_runs() {
+    use keybard::practice::weakest_section;
+    assert_eq!(
+        weakest_section(&[Some(1.0), None, Some(1.0)], 2),
+        None,
+        "nothing to fix"
+    );
+    assert_eq!(weakest_section(&[None, None], 2), None);
+    // Empty bars don't drag a window down.
+    assert_eq!(
+        weakest_section(&[Some(0.9), None, None, Some(0.5)], 2),
+        Some(2)
+    );
+    // Shorter songs than the window still get an answer.
+    assert_eq!(weakest_section(&[Some(0.5)], 4), Some(0));
+    // Ties go to the earliest.
+    assert_eq!(
+        weakest_section(&[Some(0.5), Some(0.5), Some(0.5)], 1),
+        Some(0)
+    );
+}

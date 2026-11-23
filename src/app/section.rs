@@ -4,7 +4,8 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use tracing::info;
 
-use super::transport::{Transport, advance};
+use super::results::LastResult;
+use super::transport::{PlayState, Transport, advance};
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout;
 use crate::performance::Score;
@@ -89,11 +90,26 @@ pub fn plugin(app: &mut App) {
 fn toggle(
     keys: Res<ButtonInput<KeyCode>>,
     mut section: ResMut<SectionLoop>,
-    transport: Res<Transport>,
+    mut transport: ResMut<Transport>,
     song: Res<ActiveSong>,
-    judge: Res<Judge>,
+    mut judge: ResMut<Judge>,
+    result: Option<Res<LastResult>>,
 ) {
     if !keys.just_pressed(KeyCode::F3) {
+        return;
+    }
+    // From the results card, F3 drills the weakest stretch.
+    let weakest = result
+        .filter(|_| transport.state == PlayState::Finished)
+        .and_then(|r| r.weakest);
+    if let Some(bar) = weakest {
+        let looping = Looping::from_bar(song.0.tempo, bar, song.0.duration());
+        judge.0.reset(&song.0);
+        transport.time = looping.region.start + transport.start;
+        judge.0.seek(&song.0, transport.time);
+        transport.state = PlayState::Playing;
+        info!(bar, "drilling the weakest section");
+        section.0 = Some(looping);
         return;
     }
     section.0 = match section.0 {

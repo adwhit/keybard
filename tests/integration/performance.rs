@@ -302,3 +302,28 @@ fn heat_follows_the_multiplier() {
     assert_eq!(Heat::Cold.intensity(), 0.0);
     assert_eq!(Heat::OnFire.intensity(), 1.0);
 }
+
+#[test]
+fn per_bar_accuracy_scores_each_bar_separately() {
+    // 60bpm 2/4: 2s bars. Bar 1: C4 D4, bar 2: E4 F4, bar 3: G4 (unplayed so far).
+    let tempo = Tempo::from_bpm(60.0, 2);
+    let song = Song::new(
+        "bars",
+        tempo,
+        parse_voice("C4 D4 E4 F4 G4", Hand::Right, tempo).unwrap(),
+    )
+    .unwrap();
+    let mut perf = Performance::new(&song);
+    hit(perf.press(&song, n(60), Seconds(0.0)));
+    hit(perf.press(&song, n(62), Seconds(1.0)));
+    hit(perf.press(&song, n(64), Seconds(2.15))); // Good
+    perf.advance(&song, PlayMode::Play, Seconds(0.0), Seconds(3.5)); // F4 missed
+    let bars = perf.bar_accuracy(&song);
+    assert_eq!(bars.len(), 3);
+    assert_eq!(bars[0], Some(1.0));
+    assert!(
+        (bars[1].unwrap() - 0.2).abs() < 1e-5,
+        "good (0.4) + miss (0) over 2"
+    );
+    assert_eq!(bars[2], None, "nothing judged yet");
+}

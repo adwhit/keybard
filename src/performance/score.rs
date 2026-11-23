@@ -39,7 +39,7 @@ impl Timing {
     }
 
     /// Contribution to accuracy, 0..=1.
-    fn weight(self) -> f32 {
+    pub fn weight(self) -> f32 {
         match self {
             Self::Perfect => 1.0,
             Self::Great => 0.7,

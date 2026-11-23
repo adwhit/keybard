@@ -78,7 +78,9 @@ time spent waiting counts as lateness. Every 10 hits in a row raise the
 multiplier, up to x4. A miss or a wrong note resets it.
 
 At the end you get a grade (S/A/B/C/D, by accuracy), your points, max combo and
-a breakdown, compared against your personal best for that song and mode.
+a breakdown, compared against your personal best for that song and mode. A
+strip of cells shows each bar's accuracy from red to green, and the card names
+your weakest 4-bar stretch: press F3 there to start drilling it in a loop.
 Bests are saved in the user data directory, or a file passed with `--records`.
 Headless and snapshot runs never touch your bests.
 

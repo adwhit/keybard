@@ -1,4 +1,4 @@
-use bevy::prelude::Color;
+use bevy::prelude::{Color, Mix};
 
 use crate::performance::{Grade, Timing};
 use crate::song::Hand;
@@ -52,6 +52,17 @@ pub fn hand_played(hand: Hand) -> Color {
     match hand {
         Hand::Right => Color::srgb(0.16, 0.36, 0.24),
         Hand::Left => Color::srgb(0.16, 0.26, 0.46),
+    }
+}
+
+/// Per-bar accuracy cells: red (bad) through amber to green (perfect).
+pub fn bar_accuracy(accuracy: Option<f32>) -> Color {
+    match accuracy {
+        None => PROGRESS_TRACK,
+        Some(a) if a >= 0.5 => {
+            Color::srgb(0.95, 0.75, 0.25).mix(&Color::srgb(0.30, 0.85, 0.45), (a - 0.5) * 2.0)
+        }
+        Some(a) => MISSED.mix(&Color::srgb(0.95, 0.75, 0.25), a * 2.0),
     }
 }
 

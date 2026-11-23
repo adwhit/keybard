@@ -8,7 +8,10 @@ use tracing::{info, warn};
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::performance::{Score, Timing};
+use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
+
+use super::section::LOOP_BARS;
 
 /// Where personal bests live.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +33,15 @@ pub struct Bests {
 pub struct LastResult {
     pub score: Score,
     pub submission: Submission,
+    /// Accuracy of each bar (`None` where nothing was yours to play).
+    pub bars: Vec<Option<f32>>,
+    /// 1-based first bar of the weakest stretch worth drilling.
+    pub weakest: Option<u32>,
 }
+
+/// One cell of the per-bar accuracy strip on the results card.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct BarCell(pub usize);
 
 #[derive(Component)]
 pub struct ResultsCard;
@@ -78,7 +89,14 @@ fn record_finish(
         {
             warn!(%err, "could not save personal bests");
         }
-        commands.insert_resource(LastResult { score, submission });
+        let bars = judge.0.bar_accuracy(&song.0);
+        let weakest = weakest_section(&bars, usize::from(LOOP_BARS)).map(|i| i as u32 + 1);
+        commands.insert_resource(LastResult {
+            score,
+            submission,
+            bars,
+            weakest,
+        });
     }
     if !finished {
         commands.remove_resource::<LastResult>();
@@ -178,6 +196,33 @@ fn spawn_card(commands: &mut Commands, result: &LastResult) {
                 palette::HUD_TEXT,
             ));
             card.spawn(text(tiers, 13.0, palette::HUD_DIM));
+            card.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(2.0),
+                margin: UiRect::vertical(Val::Px(4.0)),
+                ..default()
+            })
+            .with_children(|strip| {
+                result.bars.iter().enumerate().for_each(|(i, accuracy)| {
+                    strip.spawn((
+                        BarCell(i),
+                        Node {
+                            width: Val::Px(10.0),
+                            height: Val::Px(14.0),
+                            ..default()
+                        },
+                        BackgroundColor(palette::bar_accuracy(*accuracy)),
+                    ));
+                });
+            });
+            let advice = match result.weakest {
+                Some(first) => format!(
+                    "Weakest: bars {first}-{}  |  F3 to drill them",
+                    first + u32::from(LOOP_BARS) - 1
+                ),
+                None => "Every bar perfect!".to_owned(),
+            };
+            card.spawn(text(advice, 14.0, palette::HUD_TEXT));
             card.spawn(text(
                 "Space to play again | Tab to change mode | Esc to quit",
                 12.0,

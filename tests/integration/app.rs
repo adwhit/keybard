@@ -732,3 +732,43 @@ fn a_hot_streak_sets_the_screen_on_fire_and_breaking_it_cools_down() {
     assert!(h.world().resource::<HeatGlow>().0 < 0.1, "cools down");
     assert_eq!(h.count::<Ember>(), 0);
 }
+
+#[test]
+fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
+    use keybard::app::results::BarCell;
+    use keybard::app::section::SectionLoop;
+    // 240bpm 4/4: six one-second bars.
+    let tempo = Tempo::from_bpm(240.0, 4);
+    let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(6), Hand::Right, tempo).unwrap();
+    let song = Song::new("bars", tempo, notes).unwrap();
+    let mut h = Harness::with(song, PlayMode::Play, Player::Human, RecordStore::Memory);
+    // Play nothing at all: every bar is missed.
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    let result = h.world().resource::<LastResult>().clone();
+    assert_eq!(result.bars, vec![Some(0.0); 6]);
+    assert_eq!(result.weakest, Some(1));
+    assert_eq!(h.count::<BarCell>(), 6);
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(texts.iter().any(|t| t.contains("bars 1-4")), "{texts:?}");
+
+    h.tap(KeyCode::F3);
+    let region = h
+        .world()
+        .resource::<SectionLoop>()
+        .0
+        .as_ref()
+        .expect("drilling")
+        .region;
+    assert_eq!(region.start, Seconds(0.0));
+    assert_eq!(region.end, Seconds(4.0));
+    assert_eq!(h.transport().state, PlayState::Playing);
+    assert!(h.time() < region.start, "starts with a lead-in");
+    assert_eq!(h.score(), Score::default(), "fresh score for the drill");
+    assert_eq!(h.count::<ResultsCard>(), 0);
+}

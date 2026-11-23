@@ -265,6 +265,34 @@ impl Performance {
         }
     }
 
+    /// Accuracy of the player's judged notes in each bar (`None` where
+    /// nothing has been judged yet), for spotting weak sections.
+    pub fn bar_accuracy(&self, song: &Song) -> Vec<Option<f32>> {
+        let bar = song.tempo.bar_length().0;
+        let bars = (song.duration().0 / bar).ceil().max(1.0) as usize;
+        let mut sums = vec![(0.0_f32, 0_u32); bars];
+        song.iter()
+            .filter(|(_, n)| self.hands.includes(n.hand))
+            .filter_map(|(id, n)| {
+                let earned = match self.statuses[id.0] {
+                    NoteStatus::Hit(timing) => timing.weight(),
+                    NoteStatus::Missed => 0.0,
+                    NoteStatus::Pending | NoteStatus::AutoPlayed | NoteStatus::Skipped => {
+                        return None;
+                    }
+                };
+                let index = ((n.start.0 / bar) as usize).min(bars - 1);
+                Some((index, earned))
+            })
+            .for_each(|(index, earned)| {
+                sums[index].0 += earned;
+                sums[index].1 += 1;
+            });
+        sums.into_iter()
+            .map(|(earned, count)| (count > 0).then(|| earned / count as f32))
+            .collect()
+    }
+
     /// Judge a key press at `time`.
     pub fn press(&mut self, song: &Song, pitch: MidiNote, time: Seconds) -> PressOutcome {
         let candidate = song
