@@ -10,7 +10,7 @@ use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout::{self, staff};
 use crate::music::{Clef, StaffPosition, StemDirection};
-use crate::notation::{Rest, RestShape, rests};
+use crate::notation::{Rest, RestShape, beams, rests};
 use crate::performance::NoteStatus;
 use crate::song::{Beats, Hand, Note, NoteId, Seconds, Song};
 
@@ -22,6 +22,27 @@ struct ClefGizmos;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct NoteHead(pub NoteId);
+
+/// A beamed group: its notes, staff and shared stem direction.
+#[derive(Debug, Clone)]
+pub struct BeamGroup {
+    pub notes: Vec<NoteId>,
+    pub clef: Clef,
+    pub direction: StemDirection,
+}
+
+/// Beam groups for the current song.
+#[derive(Resource, Debug, Default, Clone)]
+pub struct SongBeams {
+    pub groups: Vec<BeamGroup>,
+    member: std::collections::HashMap<NoteId, usize>,
+}
+
+/// Shortest stem a beamed note may have.
+const MIN_BEAMED_STEM: f32 = 24.0;
+/// Most a beam may rise or fall end to end.
+const MAX_BEAM_SLOPE: f32 = 10.0;
+const BEAM_THICKNESS: f32 = 4.0;
 
 /// Rests for the current song, with the staff each belongs on.
 #[derive(Resource, Debug, Default, Clone)]
@@ -98,10 +119,21 @@ pub fn plugin(app: &mut App) {
         .init_gizmo_group::<ClefGizmos>()
         .add_systems(Startup, (configure_gizmos, create_head_assets))
         .init_resource::<SongRests>()
-        .add_systems(Update, (spawn_heads, find_rests).in_set(SongLoad))
+        .init_resource::<SongBeams>()
         .add_systems(
             Update,
-            (update_heads, draw_staves, draw_note_marks, draw_rests).in_set(Phase::Present),
+            (spawn_heads, find_rests, find_beams).in_set(SongLoad),
+        )
+        .add_systems(
+            Update,
+            (
+                update_heads,
+                draw_staves,
+                draw_note_marks,
+                draw_rests,
+                draw_beams,
+            )
+                .in_set(Phase::Present),
         );
 }
 
@@ -326,6 +358,117 @@ fn find_rests(song: Res<ActiveSong>, mut found: ResMut<SongRests>) {
         .collect();
 }
 
+fn find_beams(song: Res<ActiveSong>, mut found: ResMut<SongBeams>) {
+    let song = &song.0;
+    let groups: Vec<BeamGroup> = [Hand::Right, Hand::Left]
+        .into_iter()
+        .flat_map(|hand| {
+            beams(song, hand).into_iter().map(move |notes| {
+                let positions: Vec<i32> = notes
+                    .iter()
+                    .map(|id| head_position(song, song.note(*id)).1.0)
+                    .collect();
+                let mean = positions.iter().sum::<i32>() as f32 / positions.len() as f32;
+                let direction = if mean >= StaffPosition::MIDDLE_LINE.0 as f32 {
+                    StemDirection::Down
+                } else {
+                    StemDirection::Up
+                };
+                BeamGroup {
+                    notes,
+                    clef: clef_for(hand),
+                    direction,
+                }
+            })
+        })
+        .collect();
+    found.member = groups
+        .iter()
+        .enumerate()
+        .flat_map(|(g, group)| group.notes.iter().map(move |id| (*id, g)))
+        .collect();
+    found.groups = groups;
+}
+
+/// Stems and beams for beamed groups: one stem per event reaching a shared,
+/// gently sloped beam that clears every notehead.
+fn draw_beams(
+    mut gizmos: Gizmos<NotationGizmos>,
+    transport: Res<Transport>,
+    song: Res<ActiveSong>,
+    found: Res<SongBeams>,
+) {
+    let song = &song.0;
+    let now = transport.time;
+    found.groups.iter().for_each(|group| {
+        // One entry per event: (stem x, outermost head y in stem direction).
+        let dir = match group.direction {
+            StemDirection::Up => 1.0,
+            StemDirection::Down => -1.0,
+        };
+        let mut events: Vec<(f32, f32)> = Vec::new();
+        group.notes.iter().for_each(|id| {
+            let note = song.note(*id);
+            let x = staff::x(note.start - now);
+            let stem_x = x + dir * (HEAD_HALF_SIZE.x - 0.8);
+            let y = staff::y(group.clef, head_position(song, note).1);
+            match events.last_mut() {
+                Some(last) if (last.0 - stem_x).abs() < 0.5 => {
+                    // Chords: the stem starts from the far head.
+                    last.1 = if dir > 0.0 {
+                        last.1.min(y)
+                    } else {
+                        last.1.max(y)
+                    };
+                }
+                _ => events.push((stem_x, y)),
+            }
+        });
+        let (Some(first), Some(last)) = (events.first().copied(), events.last().copied()) else {
+            return;
+        };
+        if !events.iter().any(|(x, _)| staff::is_visible(*x)) {
+            return;
+        }
+        // Natural tips, then a slope limited to MAX_BEAM_SLOPE...
+        let tip = |y: f32| y + dir * STEM_LENGTH;
+        let rise = (tip(last.1) - tip(first.1)).clamp(-MAX_BEAM_SLOPE, MAX_BEAM_SLOPE);
+        let span = (last.0 - first.0).max(1.0);
+        let line = |x: f32, offset: f32| tip(first.1) + offset + rise * (x - first.0) / span;
+        // ...shifted so every stem is at least MIN_BEAMED_STEM long.
+        let offset = events
+            .iter()
+            .map(|(x, y)| {
+                let length = (line(*x, 0.0) - y) * dir;
+                (MIN_BEAMED_STEM - length).max(0.0) * dir
+            })
+            .fold(0.0_f32, |a, b| if dir > 0.0 { a.max(b) } else { a.min(b) });
+        let visible = |x: f32| x.clamp(staff::CLEF_AREA_RIGHT, layout::RIGHT);
+        events
+            .iter()
+            .filter(|(x, _)| staff::is_visible(*x))
+            .for_each(|(x, y)| {
+                gizmos.line_2d(
+                    Vec2::new(*x, *y),
+                    Vec2::new(*x, line(*x, offset)),
+                    palette::INK,
+                );
+            });
+        let (from, to) = (visible(first.0), visible(last.0));
+        if to > from {
+            let steps = (BEAM_THICKNESS * 2.0) as usize;
+            (0..=steps).for_each(|i| {
+                let t = -dir * BEAM_THICKNESS * i as f32 / steps as f32;
+                gizmos.line_2d(
+                    Vec2::new(from, line(from, offset) + t),
+                    Vec2::new(to, line(to, offset) + t),
+                    palette::INK,
+                );
+            });
+        }
+    });
+}
+
 fn draw_rests(mut gizmos: Gizmos<ClefGizmos>, transport: Res<Transport>, found: Res<SongRests>) {
     let now = transport.time;
     found.0.iter().for_each(|(clef, rest)| {
@@ -352,6 +495,7 @@ fn draw_note_marks(
     mut gizmos: Gizmos<NotationGizmos>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
+    beams: Res<SongBeams>,
 ) {
     let now = transport.time;
     let (from, to) = visible_window(now);
@@ -360,8 +504,10 @@ fn draw_note_marks(
     let first = notes.partition_point(|n| n.start < from);
     notes[first..]
         .iter()
-        .take_while(|n| n.start <= to)
-        .for_each(|note| {
+        .enumerate()
+        .take_while(|(_, n)| n.start <= to)
+        .for_each(|(offset, note)| {
+            let id = NoteId(first + offset);
             let x = staff::x(note.start - now);
             let (clef, position) = head_position(song, note);
             let y = staff::y(clef, position);
@@ -376,7 +522,9 @@ fn draw_note_marks(
                 );
             });
 
-            if shape.has_stem() {
+            // Beamed notes get their stems from `draw_beams`.
+            let beamed = beams.member.contains_key(&id);
+            if shape.has_stem() && !beamed {
                 let (stem_x, dir) = match position.stem_direction() {
                     StemDirection::Up => (x + HEAD_HALF_SIZE.x - 0.8, 1.0),
                     StemDirection::Down => (x - HEAD_HALF_SIZE.x + 0.8, -1.0),

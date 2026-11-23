@@ -1122,3 +1122,25 @@ fn notes_sit_where_the_key_spells_them() {
         bb.y
     );
 }
+
+#[test]
+fn beam_groups_are_built_for_the_song() {
+    use keybard::app::notation::SongBeams;
+    use keybard::music::StemDirection;
+    let tempo = Tempo::from_bpm(60.0, 4);
+    let notes = parse_voice("C4/0.5 D4/0.5 E5/0.5 F5/0.5 G4/2", Hand::Right, tempo).unwrap();
+    let song = Song::new("beams", tempo, notes).unwrap();
+    let h = Harness::new(song, PlayMode::Listen);
+    let beams = h.app.world().resource::<SongBeams>();
+    assert_eq!(beams.groups.len(), 2);
+    assert_eq!(
+        beams.groups[0].direction,
+        StemDirection::Up,
+        "low notes: stems up"
+    );
+    assert_eq!(
+        beams.groups[1].direction,
+        StemDirection::Down,
+        "high notes: stems down"
+    );
+}

@@ -104,3 +104,51 @@ fn shapes_for(from: f32, to: f32, bar: f32) -> Vec<(f32, f32, RestShape)> {
     }
     out
 }
+
+/// Notes shorter than this many beats are flagged/beamed.
+const BEAMABLE: f32 = 0.75;
+
+/// Groups of notes (in one hand) joined by a beam: consecutive eighths or
+/// shorter within the same beat, with no gap between them. Chords count as
+/// one event; a group needs at least two events. Ids are in song order.
+pub fn beams(song: &Song, hand: Hand) -> Vec<Vec<crate::song::NoteId>> {
+    let tempo = song.tempo;
+    let beats = |s: Seconds| (tempo.to_beats(s).0 * GRID).round() / GRID;
+    // Events: (start, end, ids) for each distinct start time in this hand.
+    let mut events: Vec<(f32, f32, Vec<crate::song::NoteId>)> = Vec::new();
+    song.iter()
+        .filter(|(_, n)| n.hand == hand)
+        .for_each(|(id, n)| {
+            let (start, end) = (beats(n.start), beats(n.end()));
+            match events.last_mut() {
+                Some(event) if (event.0 - start).abs() < EPSILON => {
+                    event.1 = event.1.max(end);
+                    event.2.push(id);
+                }
+                _ => events.push((start, end, vec![id])),
+            }
+        });
+    let short = |e: &(f32, f32, Vec<crate::song::NoteId>)| e.1 - e.0 < BEAMABLE;
+
+    let mut groups: Vec<Vec<&(f32, f32, Vec<crate::song::NoteId>)>> = Vec::new();
+    events.iter().for_each(|event| {
+        let joins = groups.last().and_then(|g| g.last()).is_some_and(|prev| {
+            short(prev)
+                && short(event)
+                && (prev.1 - event.0).abs() < EPSILON
+                && (prev.0 + EPSILON).floor() == (event.0 + EPSILON).floor()
+        });
+        if joins {
+            if let Some(group) = groups.last_mut() {
+                group.push(event);
+            }
+        } else {
+            groups.push(vec![event]);
+        }
+    });
+    groups
+        .into_iter()
+        .filter(|g| g.len() >= 2)
+        .map(|g| g.iter().flat_map(|e| e.2.iter().copied()).collect())
+        .collect()
+}

@@ -202,11 +202,12 @@ Layout:
 ## Status
 
 Working: grand-staff notation (clefs, inferred key signatures with sharps or
-flats, accidentals only where needed, ledger lines, stems, flags, rests,
+flats, accidentals only where needed, ledger lines, stems, flags, beams by
+beat, rests,
 bar lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
 bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
 piano-like additive synth.
 
-Not yet done: beaming, sampled piano sound, and
+Not yet done: sampled piano sound, and
 choosing a MIDI port.

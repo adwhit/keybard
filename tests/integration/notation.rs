@@ -75,3 +75,53 @@ fn fur_elise_left_hand_waits_two_bars() {
     assert_eq!(left[2], (7.5, RestShape::Quarter));
     assert_eq!(left[3], (8.5, RestShape::Eighth));
 }
+
+fn beam_summary(song: &Song, hand: Hand) -> Vec<Vec<String>> {
+    keybard::notation::beams(song, hand)
+        .iter()
+        .map(|group| {
+            group
+                .iter()
+                .map(|id| song.note(*id).pitch.to_string())
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn eighths_are_beamed_in_beat_groups() {
+    let s = song("D5 G4/0.5 A4/0.5 B4/0.5 C5/0.5 | D5/4", "G3/3 | G3/4", 4);
+    assert_eq!(
+        beam_summary(&s, Hand::Right),
+        vec![vec!["G4", "A4"], vec!["B4", "C5"]]
+    );
+    assert!(beam_summary(&s, Hand::Left).is_empty());
+}
+
+#[test]
+fn rests_and_longer_notes_break_beams() {
+    let s = song("C4/0.5 R/0.5 D4/0.5 E4/0.5 F4 G4/0.5 A4/0.5", "C3/4", 4);
+    assert_eq!(
+        beam_summary(&s, Hand::Right),
+        vec![vec!["D4", "E4"], vec!["G4", "A4"]]
+    );
+}
+
+#[test]
+fn chords_are_beamed_as_one_event() {
+    let s = song("C4+E4/0.5 D4+F4/0.5 G4/3", "C3/4", 4);
+    assert_eq!(
+        beam_summary(&s, Hand::Right),
+        vec![vec!["C4", "E4", "D4", "F4"]]
+    );
+}
+
+#[test]
+fn fur_elise_opening_bar_beams_in_pairs() {
+    let s = BuiltinSong::FurElise.load().unwrap();
+    let right = beam_summary(&s, Hand::Right);
+    assert_eq!(right[0], vec!["E5", "D#5"], "the pickup");
+    assert_eq!(right[1], vec!["E5", "D#5"]);
+    assert_eq!(right[2], vec!["E5", "B4"]);
+    assert_eq!(right[3], vec!["D5", "C5"]);
+}
