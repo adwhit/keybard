@@ -50,6 +50,14 @@ pub struct Transport {
     pub start: Seconds,
 }
 
+/// Whether a click plays on every beat of the music (F4).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Metronome {
+    #[default]
+    Off,
+    On,
+}
+
 /// A beat of the count-in, for display and the metronome click.
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
 pub struct CountInTick(pub CountIn);
@@ -79,6 +87,7 @@ const CLICK_LENGTH: Seconds = Seconds(0.05);
 
 pub fn plugin(app: &mut App) {
     app.add_message::<CountInTick>()
+        .init_resource::<Metronome>()
         .add_systems(Update, (controls, advance).chain().in_set(Phase::Simulate));
 }
 
@@ -88,6 +97,7 @@ fn controls(
     song: Res<ActiveSong>,
     mut judge: ResMut<Judge>,
     mut exit: MessageWriter<AppExit>,
+    mut metronome: ResMut<Metronome>,
 ) {
     let song = &song.0;
     if keys.just_pressed(KeyCode::Escape) {
@@ -147,6 +157,13 @@ fn controls(
         judge.0.seek(song, transport.time);
         info!(mode = transport.mode.label(), "changed play mode");
     }
+    if keys.just_pressed(KeyCode::F4) {
+        *metronome = match *metronome {
+            Metronome::Off => Metronome::On,
+            Metronome::On => Metronome::Off,
+        };
+        info!(metronome = ?*metronome, "toggled metronome");
+    }
     if keys.just_pressed(KeyCode::F2) {
         let hands = judge.0.hands().next();
         judge.0.set_hands(hands);
@@ -155,6 +172,7 @@ fn controls(
     }
 }
 
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 pub fn advance(
     time: Res<Time>,
     mut transport: ResMut<Transport>,
@@ -163,6 +181,7 @@ pub fn advance(
     mut tones: MessageWriter<PlayTone>,
     mut feedback: MessageWriter<Feedback>,
     mut ticks: MessageWriter<CountInTick>,
+    metronome: Res<Metronome>,
 ) {
     if transport.state != PlayState::Playing {
         return;
@@ -180,6 +199,15 @@ pub fn advance(
         });
         ticks.write(CountInTick(beat));
     });
+    if *metronome == Metronome::On {
+        tones.write_batch(song.tempo.beats_between(from, advance.time).map(|beat| {
+            PlayTone {
+                note: MidiNote::new(if beat.downbeat { CLICK_ACCENT } else { CLICK })
+                    .unwrap_or(MidiNote::MIDDLE_C),
+                duration: CLICK_LENGTH,
+            }
+        }));
+    }
     transport.time = advance.time;
     let speed = transport.speed.get();
     tones.write_batch(advance.auto_played.iter().map(|id| {

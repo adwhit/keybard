@@ -205,3 +205,21 @@ fn builtin_titles_are_plain_ascii_for_the_default_font() {
         );
     });
 }
+
+#[test]
+fn beats_crossed_in_a_step_are_reported_once_with_downbeats() {
+    use keybard::song::Beat;
+    let tempo = Tempo::from_bpm(120.0, 3); // 0.5s beats, 3 per bar
+    let beats: Vec<Beat> = tempo.beats_between(Seconds(-0.1), Seconds(1.6)).collect();
+    let summary: Vec<(u32, bool)> = beats.iter().map(|b| (b.index, b.downbeat)).collect();
+    assert_eq!(summary, vec![(0, true), (1, false), (2, false), (3, true)]);
+    assert!((beats[3].at.0 - 1.5).abs() < 1e-6);
+    // Half-open: a beat exactly at `from` was already reported last step.
+    assert_eq!(tempo.beats_between(Seconds(0.5), Seconds(0.9)).count(), 0);
+    assert_eq!(tempo.beats_between(Seconds(0.4), Seconds(0.5)).count(), 1);
+    assert_eq!(
+        tempo.beats_between(Seconds(-3.0), Seconds(-1.0)).count(),
+        0,
+        "none before the music"
+    );
+}

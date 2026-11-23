@@ -7,7 +7,7 @@ use bevy::sprite::Anchor;
 use super::practice::Practice;
 use super::section::SectionLoop;
 use super::songs::SongScoped;
-use super::transport::{PlayState, Transport};
+use super::transport::{Metronome, PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, Phase, palette};
 use crate::layout;
 use crate::performance::{Judgement, Timing};
@@ -44,7 +44,7 @@ struct Display {
     last_age: f32,
 }
 
-const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | F3 loop 4 bars | PgUp/PgDn song | Backspace restart | F1 labels | Esc quit\n\
+const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | F3 loop 4 bars | F4 metronome | PgUp/PgDn song | Backspace restart | F1 labels | Esc quit\n\
 Play with Z S X D C V... and Q 2 W 3 E R... | -/= shift octave | or a MIDI keyboard";
 
 const STRIP_HEIGHT: f32 = 5.0;
@@ -163,6 +163,7 @@ fn update_info(
     judge: Res<Judge>,
     section: Res<SectionLoop>,
     practice: Res<Practice>,
+    metronome: Res<Metronome>,
 ) {
     let state = match transport.state {
         PlayState::Playing => "",
@@ -173,10 +174,14 @@ fn update_info(
     let total = song.0.duration().0;
     let clock = |s: f32| format!("{}:{:02}", (s / 60.0) as u32, (s % 60.0) as u32);
     text.0 = format!(
-        "{title}\n{mode} mode | {hands} | {speed:.0}% speed | {elapsed} / {total}{state}",
+        "{title}\n{mode} mode | {hands} | {speed:.0}% speed{click} | {elapsed} / {total}{state}",
         title = song.0.title,
         mode = transport.mode.label(),
         hands = judge.0.hands().label(),
+        click = match *metronome {
+            Metronome::On => " | metronome",
+            Metronome::Off => "",
+        },
         speed = transport.speed.get() * 100.0,
         elapsed = clock(elapsed),
         total = clock(total),

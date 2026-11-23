@@ -55,11 +55,12 @@ higher notes decaying sooner, and a soft attack and release so nothing clicks.
 `--render-wav FILE` (or `just listen`) mixes a whole song through it offline,
 so you can hear it without running the app.
 
-### Count-in
+### Count-in and metronome
 
 Every start, restart and replay begins with at least a bar of lead-in. A
 metronome clicks the last bar (accent on the first beat) while a big
-countdown shows the beats left before the first note.
+countdown shows the beats left before the first note. F4 keeps the metronome clicking
+on every beat while you play, accented on each bar's downbeat.
 
 ### Looping a section
 
@@ -146,6 +147,7 @@ that records every judgement as a coloured tick.
 | F1 | bar labels: fingers + names / fingers / names / off |
 | F2 | practise both hands / right / left |
 | F3 | loop the current 4 bars / stop looping |
+| F4 | metronome on / off |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
 | Esc | quit |

@@ -1199,3 +1199,25 @@ fn crossing_the_daily_minimum_celebrates_the_streak() {
     assert!(celebrated);
     assert_eq!(h.world().resource::<Practice>().streak(), 3);
 }
+
+#[test]
+fn f4_toggles_a_metronome_that_clicks_every_beat() {
+    use keybard::app::transport::Metronome;
+    let clicks_between = |h: &mut Harness, until: f32| {
+        let mut clicks = 0;
+        while h.time().0 < until {
+            h.app.update();
+            clicks += h.tones().iter().filter(|t| t.note.value() >= 88).count();
+        }
+        clicks
+    };
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    h.run_until(0.1);
+    assert_eq!(clicks_between(&mut h, 2.05), 0, "off by default");
+    h.tap(KeyCode::F4);
+    assert_eq!(*h.world().resource::<Metronome>(), Metronome::On);
+    // 60bpm: beats at 3.0 and 4.0... from 2.05 to 4.05 crosses two.
+    assert_eq!(clicks_between(&mut h, 4.05), 2);
+    h.tap(KeyCode::F4);
+    assert_eq!(*h.world().resource::<Metronome>(), Metronome::Off);
+}

@@ -85,6 +85,25 @@ impl Tempo {
         self.to_seconds(Beats(f32::from(self.beats_per_bar)))
     }
 
+    /// Beats of the music (from time zero) that fall in `(from, to]`.
+    pub fn beats_between(self, from: Seconds, to: Seconds) -> impl Iterator<Item = Beat> {
+        let beat = self.seconds_per_beat.0;
+        let per_bar = u32::from(self.beats_per_bar.max(1));
+        // First beat strictly after `from` (and not before zero).
+        let first = if from.0 < 0.0 {
+            0
+        } else {
+            (from.0 / beat).floor() as u32 + 1
+        };
+        (first..)
+            .map(move |index| Beat {
+                index,
+                at: Seconds(index as f32 * beat),
+                downbeat: index % per_bar == 0,
+            })
+            .take_while(move |b| b.at <= to)
+    }
+
     /// Count-in beats (one bar before time zero) that fall in `(from, to]`.
     pub fn count_in(self, from: Seconds, to: Seconds) -> impl Iterator<Item = CountIn> {
         let beat = self.seconds_per_beat.0;
@@ -96,6 +115,15 @@ impl Tempo {
             })
             .filter(move |c| from < c.at && c.at <= to)
     }
+}
+
+/// A beat of the music (time zero onwards).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Beat {
+    pub index: u32,
+    pub at: Seconds,
+    /// First beat of a bar.
+    pub downbeat: bool,
 }
 
 /// One click of the count-in: `remaining` beats until the music starts.
