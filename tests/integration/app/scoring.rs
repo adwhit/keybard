@@ -1,6 +1,7 @@
 //! Headless app tests: scoring.
 
 use super::*;
+use keybard::app::results::ChallengeOutcome;
 
 #[test]
 fn wait_mode_holds_until_the_right_key_is_played() {
@@ -482,7 +483,10 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
         h.app.update();
     }
     h.frames(2);
-    assert!(h.world().resource::<LastResult>().challenge_met);
+    assert!(matches!(
+        h.world().resource::<LastResult>().challenge,
+        ChallengeOutcome::Completed { .. }
+    ));
     let texts: Vec<String> = {
         let mut q = h.world().query::<&Text>();
         q.iter(h.app.world()).map(|t| t.0.clone()).collect()
@@ -491,6 +495,23 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
         texts.iter().any(|t| t == "DAILY CHALLENGE COMPLETE!"),
         "{texts:?}"
     );
+
+    // Again the same day: remembered, not re-celebrated.
+    h.tap(KeyCode::Space);
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert_eq!(
+        h.world().resource::<LastResult>().challenge,
+        ChallengeOutcome::AlreadyDone
+    );
+    h.tap(KeyCode::Space);
+    let list = {
+        let mut q = h.world().query_filtered::<&Text, With<SongList>>();
+        q.single(h.app.world()).unwrap().0.clone()
+    };
+    assert!(list.contains("(done!)"), "{list}");
 }
 
 #[test]
@@ -506,7 +527,7 @@ fn other_songs_dont_complete_the_challenge() {
     }
     h.frames(2);
     assert!(
-        !h.world().resource::<LastResult>().challenge_met,
+        h.world().resource::<LastResult>().challenge == ChallengeOutcome::NotMet,
         "no playlist, no challenge"
     );
 }

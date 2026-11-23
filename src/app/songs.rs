@@ -247,7 +247,14 @@ fn show_list(
     let today = titles
         .0
         .get(challenge.song)
-        .map(|title| challenge.describe(title))
+        .map(|title| {
+            let done = if practice.log.challenge_done(practice.today) {
+                "  (done!)"
+            } else {
+                ""
+            };
+            format!("{}{done}", challenge.describe(title))
+        })
         .unwrap_or_default();
     text.0 = format!(
         "{today}\nSONGS  (PgUp/PgDn)   best in {} mode\n{}",

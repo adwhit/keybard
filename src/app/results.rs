@@ -52,8 +52,19 @@ pub struct LastResult {
     pub weakest: Option<u32>,
     pub insights: Insights,
     pub new_achievements: Vec<Achievement>,
-    /// This run met today's challenge.
-    pub challenge_met: bool,
+    pub challenge: ChallengeOutcome,
+}
+
+/// How a finished run relates to today's challenge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChallengeOutcome {
+    NotMet,
+    /// Completed for the first time today; the challenge streak so far.
+    Completed {
+        streak: u32,
+    },
+    /// Met again after already completing it today.
+    AlreadyDone,
 }
 
 /// One cell of the per-bar accuracy strip on the results card.
@@ -115,7 +126,7 @@ fn record_finish(
     song: Res<ActiveSong>,
     mut bests: ResMut<Bests>,
     mut unlocked: ResMut<Unlocked>,
-    practice: Res<Practice>,
+    mut practice: ResMut<Practice>,
     view: Res<View>,
     playlist: Res<Playlist>,
     mut was_finished: Local<bool>,
@@ -154,7 +165,23 @@ fn record_finish(
                 warn!(%err, "could not save achievements");
             }
         }
-        let score_grade = run.score.grade();
+        let met = !playlist.entries().is_empty()
+            && for_day(practice.today, playlist.entries().len()).is_met_by(
+                playlist.current(),
+                transport.mode,
+                run.score.grade(),
+            );
+        let today = practice.today;
+        let challenge = match (met, met && practice.log.complete_challenge(today)) {
+            (false, _) => ChallengeOutcome::NotMet,
+            (true, true) => {
+                practice.persist();
+                ChallengeOutcome::Completed {
+                    streak: practice.log.challenge_streak(today),
+                }
+            }
+            (true, false) => ChallengeOutcome::AlreadyDone,
+        };
         let bars = judge.0.bar_accuracy(&song.0);
         let weakest = weakest_section(&bars, usize::from(LOOP_BARS)).map(|i| i as u32 + 1);
         commands.insert_resource(LastResult {
@@ -164,12 +191,7 @@ fn record_finish(
             weakest,
             insights: judge.0.insights(&song.0),
             new_achievements,
-            challenge_met: !playlist.entries().is_empty()
-                && for_day(practice.today, playlist.entries().len()).is_met_by(
-                    playlist.current(),
-                    transport.mode,
-                    score_grade,
-                ),
+            challenge,
         });
     }
     if !finished {
@@ -317,8 +339,25 @@ fn spawn_card(
         .with_children(|card| {
             card.spawn(text(grade_label, 96.0, grade_color));
             card.spawn(text(full_combo, 18.0, palette::timing(Timing::Perfect)));
-            if result.challenge_met {
-                card.spawn(text("DAILY CHALLENGE COMPLETE!", 18.0, palette::FIRE));
+            match result.challenge {
+                ChallengeOutcome::Completed { streak } => {
+                    card.spawn(text("DAILY CHALLENGE COMPLETE!", 18.0, palette::FIRE));
+                    if streak > 1 {
+                        card.spawn(text(
+                            format!("{streak}-day challenge streak"),
+                            14.0,
+                            palette::FIRE,
+                        ));
+                    }
+                }
+                ChallengeOutcome::AlreadyDone => {
+                    card.spawn(text(
+                        "Daily challenge already done today",
+                        13.0,
+                        palette::HUD_DIM,
+                    ));
+                }
+                ChallengeOutcome::NotMet => {}
             }
             card.spawn(text(
                 format!("{:07}", score.points),

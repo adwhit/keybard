@@ -1,6 +1,6 @@
 //! Practice time per day and the daily streak, persisted as TSV.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -47,6 +47,8 @@ pub const MIN_DAILY_PRACTICE: Seconds = Seconds(60.0);
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PracticeLog {
     days: BTreeMap<Day, Seconds>,
+    /// Days on which the daily challenge was completed.
+    challenges: BTreeSet<Day>,
 }
 
 impl PracticeLog {
@@ -59,6 +61,20 @@ impl PracticeLog {
         self.days.get(&day).copied().unwrap_or_default()
     }
 
+    /// Record today's challenge as done; true the first time each day.
+    pub fn complete_challenge(&mut self, day: Day) -> bool {
+        self.challenges.insert(day)
+    }
+
+    pub fn challenge_done(&self, day: Day) -> bool {
+        self.challenges.contains(&day)
+    }
+
+    /// Consecutive days of completed challenges, alive until today ends.
+    pub fn challenge_streak(&self, today: Day) -> u32 {
+        run_length(today, |d| self.challenge_done(d))
+    }
+
     fn counts(&self, day: Day) -> bool {
         self.on(day) >= MIN_DAILY_PRACTICE
     }
@@ -66,14 +82,7 @@ impl PracticeLog {
     /// Consecutive qualifying days ending today, or ending yesterday if today
     /// doesn't qualify yet (there's still time to keep the streak).
     pub fn streak(&self, today: Day) -> u32 {
-        let end = if self.counts(today) {
-            Some(today)
-        } else {
-            today.previous()
-        };
-        std::iter::successors(end, |d| d.previous())
-            .take_while(|d| self.counts(*d))
-            .count() as u32
+        run_length(today, |d| self.counts(d))
     }
 
     pub fn load(path: &Path) -> Result<Self, Error> {
@@ -87,20 +96,31 @@ impl PracticeLog {
                 });
             }
         };
-        let days = text
+        // Each line: day, seconds practised, and "challenge" if completed.
+        let entries: Vec<(Day, Seconds, bool)> = text
             .lines()
             .filter(|l| !l.trim().is_empty())
             .filter_map(|line| {
-                let parsed = line
-                    .split_once('\t')
-                    .and_then(|(d, s)| Some((Day(d.parse().ok()?), Seconds(s.parse().ok()?))));
+                let mut fields = line.split('\t');
+                let mut field = || fields.next();
+                let parsed = field()
+                    .and_then(|d| d.parse().ok())
+                    .zip(field().and_then(|s| s.parse().ok()))
+                    .map(|(d, s)| (Day(d), Seconds(s), field() == Some("challenge")));
                 if parsed.is_none() {
                     warn!(line, "skipping unreadable practice entry");
                 }
                 parsed
             })
             .collect();
-        Ok(Self { days })
+        Ok(Self {
+            days: entries
+                .iter()
+                .filter(|(_, t, _)| t.0 > 0.0)
+                .map(|(d, t, _)| (*d, *t))
+                .collect(),
+            challenges: entries.iter().filter(|e| e.2).map(|e| e.0).collect(),
+        })
     }
 
     pub fn save(&self, path: &Path) -> Result<(), Error> {
@@ -111,11 +131,31 @@ impl PracticeLog {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(io)?;
         }
-        let text: String = self
-            .days
-            .iter()
-            .map(|(day, time)| format!("{}\t{}\n", day.0, time.0))
+        let all_days: BTreeSet<Day> = self.days.keys().chain(&self.challenges).copied().collect();
+        let text: String = all_days
+            .into_iter()
+            .map(|day| {
+                let flag = if self.challenge_done(day) {
+                    "\tchallenge"
+                } else {
+                    ""
+                };
+                format!("{}\t{}{flag}\n", day.0, self.on(day).0)
+            })
             .collect();
         std::fs::write(path, text).map_err(io)
     }
+}
+
+/// Consecutive days satisfying `qualifies`, ending today, or yesterday if
+/// today doesn't qualify yet.
+fn run_length(today: Day, qualifies: impl Fn(Day) -> bool) -> u32 {
+    let end = if qualifies(today) {
+        Some(today)
+    } else {
+        today.previous()
+    };
+    std::iter::successors(end, |d| d.previous())
+        .take_while(|d| qualifies(*d))
+        .count() as u32
 }

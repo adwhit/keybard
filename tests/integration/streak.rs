@@ -70,3 +70,34 @@ fn days_follow_the_local_clock() {
     );
     assert_eq!(Day::local(utc, 0), utc_day);
 }
+
+#[test]
+fn challenge_completions_are_recorded_once_per_day_and_streak() {
+    let mut l = PracticeLog::default();
+    assert!(l.complete_challenge(Day(10)), "first time today");
+    assert!(!l.complete_challenge(Day(10)), "already done");
+    assert!(l.challenge_done(Day(10)));
+    assert!(!l.challenge_done(Day(11)));
+    l.complete_challenge(Day(11));
+    l.complete_challenge(Day(12));
+    assert_eq!(l.challenge_streak(Day(12)), 3);
+    assert_eq!(
+        l.challenge_streak(Day(13)),
+        3,
+        "today not done yet: still alive"
+    );
+    assert_eq!(l.challenge_streak(Day(14)), 0);
+}
+
+#[test]
+fn challenge_days_round_trip_with_practice_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("practice.tsv");
+    let mut l = log(&[(100, 61.5)]);
+    l.complete_challenge(Day(100));
+    l.complete_challenge(Day(101)); // a day with a challenge but no logged time
+    l.save(&path).unwrap();
+    let loaded = PracticeLog::load(&path).unwrap();
+    assert_eq!(loaded, l);
+    assert!(loaded.challenge_done(Day(101)));
+}

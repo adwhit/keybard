@@ -38,6 +38,11 @@ impl Practice {
         (self.log.on(self.today).0 / 60.0) as u32
     }
 
+    /// Save now (e.g. after recording a challenge).
+    pub fn persist(&mut self) {
+        self.save();
+    }
+
     fn save(&mut self) {
         if let RecordStore::File(path) = &self.store
             && let Err(err) = self.log.save(path)

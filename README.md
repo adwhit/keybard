@@ -39,7 +39,9 @@ single track the split is at middle C.
 
 Every day one song in the playlist is today's challenge (it rotates daily):
 get a B or better on it in Play mode and the results card says "DAILY
-CHALLENGE COMPLETE!". The song list shows which one it is.
+CHALLENGE COMPLETE!" (with your challenge streak). Completions are remembered
+in the practice log, so replays the same day don't re-celebrate, and the song
+list marks today's challenge "(done!)".
 
 PgUp/PgDn switch songs at any time, cycling through every built-in plus the
 MIDI file you opened. During the lead-in and while paused, a song list shows
