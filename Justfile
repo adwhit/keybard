@@ -37,3 +37,7 @@ smoke SONG="scale":
 snapshot SONG="ode-to-joy" *TIMES="--at 1 --at 6 --at 12":
     rm -rf target/snapshots && mkdir -p target/snapshots
     cargo run -- --no-midi --song {{SONG}} --snapshot target/snapshots {{TIMES}}
+
+# Render a song through the synth to target/<song>.wav, to listen without the app
+listen SONG="ode-to-joy":
+    cargo run --release -- --song {{SONG}} --render-wav target/{{SONG}}.wav

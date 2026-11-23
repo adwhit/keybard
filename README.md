@@ -29,6 +29,7 @@ just play-midi path/to/song.mid
 just play --mode play --autopilot  # watch the built-in player go for a full combo
 just smoke                         # whole song headlessly, no window/GPU/audio
 just snapshot                      # render PNGs offscreen into target/snapshots
+just listen twinkle                # render the song to target/twinkle.wav
 ```
 
 Built-in songs: `ode-to-joy`, `twinkle`, `scale`. Any Standard MIDI File
@@ -37,9 +38,17 @@ single track the split is at middle C.
 
 ### Modes (Tab cycles)
 
-- **Listen**: the song plays itself, with sine-wave sound.
+- **Listen**: the song plays itself.
 - **Wait**: the clock stops at each note until you play it (all notes of a chord).
 - **Play**: the clock keeps running. Notes you miss by more than 0.2s count as missed.
+
+### Sound
+
+Notes play through a small additive synth (`src/synth.rs`) that imitates a
+struck string: six slightly stretched harmonics, high ones fading faster,
+higher notes decaying sooner, and a soft attack and release so nothing clicks.
+`--render-wav FILE` (or `just listen`) mixes a whole song through it offline,
+so you can hear it without running the app.
 
 ### Count-in
 
@@ -136,6 +145,8 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/synth.rs`: additive struck-string synth (pure sample generation)
+- `src/render.rs`: offline song mixdown to WAV
 - `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
@@ -147,9 +158,9 @@ Layout:
 Working: grand-staff notation (clefs, ledger lines, stems, flags, sharps, bar
 lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and
-sine-wave audio.
+bests, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
+piano-like additive synth.
 
 Not yet done: key signatures and flats (all accidentals are written as
-sharps), rests in the notation, beaming, a nicer synth, a song picker UI, and
+sharps), rests in the notation, beaming, sampled piano sound, a song picker UI, and
 choosing a MIDI port.

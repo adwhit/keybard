@@ -1,7 +1,7 @@
 //! Personal bests per song and play mode, persisted as a small TSV file.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tracing::{debug, warn};
 
@@ -89,6 +89,11 @@ fn parse_line(line: &str) -> Option<(RecordKey, Best)> {
             max_combo,
         },
     ))
+}
+
+/// Where bests live by default: the platform's user data directory.
+pub fn default_path() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "", "keybard").map(|dirs| dirs.data_dir().join("bests.tsv"))
 }
 
 impl Records {

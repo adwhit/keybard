@@ -3,12 +3,11 @@ use std::process::ExitCode;
 
 use bevy::app::AppExit;
 use clap::Parser;
-use directories::ProjectDirs;
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
-use keybard::midi_file;
 use keybard::performance::{Hands, PlayMode};
 use keybard::song::Seconds;
+use keybard::{midi_file, records, render};
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum HandsArg {
@@ -82,6 +81,9 @@ struct Cli {
     /// windowed mode; headless and snapshot runs never touch it.
     #[arg(long, value_name = "FILE")]
     records: Option<PathBuf>,
+    /// Render the song through the synth into a WAV file and exit (no window).
+    #[arg(long, value_name = "FILE", conflicts_with_all = ["snapshot", "headless"])]
+    render_wav: Option<PathBuf>,
     /// Resolution multiplier for --snapshot images.
     #[arg(long, default_value_t = 1.0)]
     snapshot_scale: f32,
@@ -100,12 +102,19 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if let Some(path) = &cli.render_wav {
+        return match render::write_wav(path, &render::render_song(&song)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("keybard: {err}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let records = match (&cli.records, cli.headless || cli.snapshot.is_some()) {
         (Some(path), _) => RecordStore::File(path.clone()),
         (None, true) => RecordStore::Memory,
-        (None, false) => ProjectDirs::from("", "", "keybard").map_or(RecordStore::Memory, |dirs| {
-            RecordStore::File(dirs.data_dir().join("bests.tsv"))
-        }),
+        (None, false) => records::default_path().map_or(RecordStore::Memory, RecordStore::File),
     };
     let exit = app::run(Options {
         song,

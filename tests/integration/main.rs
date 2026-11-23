@@ -8,4 +8,6 @@ mod music;
 mod performance;
 mod practice;
 mod records;
+mod render;
 mod song;
+mod synth;
