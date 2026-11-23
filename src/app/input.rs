@@ -220,7 +220,13 @@ fn judge_presses(
                 debug!(note = %input.note, source = ?input.source, ?outcome, "judged press");
                 feedback.write(match outcome {
                     PressOutcome::Hit(judgement) => Feedback::Hit(judgement),
-                    PressOutcome::Wrong => Feedback::Wrong(input.note),
+                    PressOutcome::Wrong => Feedback::Wrong {
+                        pressed: input.note,
+                        expected: judge
+                            .0
+                            .expected_near(&song.0, input.note, transport.time)
+                            .map(|id| song.0.note(id).pitch),
+                    },
                 });
             }
         }

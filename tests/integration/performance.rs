@@ -401,3 +401,37 @@ fn insight_summaries_read_like_coaching() {
     );
     assert!(Insights::default().summary().is_empty());
 }
+
+#[test]
+fn wrong_presses_point_at_the_nearest_expected_note() {
+    let song = song_from("C4+G4 E4");
+    let perf = Performance::new(&song);
+    // Near time 0, C4 and G4 are due: F4 is closer to G4.
+    assert_eq!(
+        perf.expected_near(&song, n(65), Seconds(0.05))
+            .map(|id| song.note(id).pitch),
+        Some(n(67))
+    );
+    assert_eq!(
+        perf.expected_near(&song, n(59), Seconds(0.0))
+            .map(|id| song.note(id).pitch),
+        Some(n(60))
+    );
+    // Nothing due in the window: no suggestion.
+    assert_eq!(perf.expected_near(&song, n(60), Seconds(0.5)), None);
+}
+
+#[test]
+fn wrong_notes_carry_the_suggestion() {
+    let song = song_from("C4 E4");
+    let mut perf = Performance::new(&song);
+    match perf.press(&song, n(62), Seconds(1.0)) {
+        PressOutcome::Wrong => {}
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        perf.expected_near(&song, n(62), Seconds(1.0))
+            .map(|id| song.note(id).pitch),
+        Some(n(64))
+    );
+}

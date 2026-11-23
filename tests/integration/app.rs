@@ -1327,3 +1327,13 @@ fn f5_shows_the_achievement_gallery() {
     h.tap(KeyCode::F5);
     assert!(!gallery(&mut h).1);
 }
+
+#[test]
+fn wrong_notes_suggest_the_right_one() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.run_until(0.95);
+    h.midi(62, KeyEdge::Down); // D4 while E4 is due
+    assert!(h.texts().contains(&"try E4".to_owned()), "{:?}", h.texts());
+    // Two flashes: the wrong key and the wanted one.
+    assert!(h.count::<KeyFlash>() >= 2);
+}

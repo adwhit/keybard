@@ -124,7 +124,7 @@ fn spawn_from_feedback(
                 (note.pitch, Some(note.hand), None)
             }
             Feedback::Missed(id) => (song.0.note(id).pitch, None, None),
-            Feedback::Wrong(pitch) => (pitch, None, None),
+            Feedback::Wrong { pressed, .. } => (pressed, None, None),
         };
         let Some(geometry) = range.geometry(pitch) else {
             return;
@@ -146,8 +146,32 @@ fn spawn_from_feedback(
         let text = match *event {
             Feedback::Hit(j) => Some((j.timing.label(), palette::timing(j.timing), 1.0)),
             Feedback::Missed(_) => Some(("MISS", palette::MISSED, 0.9)),
-            Feedback::Wrong(_) | Feedback::AutoPlayed(_) => None,
+            Feedback::Wrong { .. } | Feedback::AutoPlayed(_) => None,
         };
+        // Point a wrong press at the note that was wanted.
+        if let Feedback::Wrong {
+            expected: Some(wanted),
+            ..
+        } = *event
+        {
+            popup(
+                &mut commands,
+                &format!("try {wanted}"),
+                palette::PRESSED,
+                Vec2::new(x, layout::HIT_LINE + 34.0),
+                15.0,
+                1.0,
+            );
+            if let Some(target) = range.geometry(wanted) {
+                flash(
+                    &mut commands,
+                    &textures,
+                    target.center_x,
+                    target.width,
+                    palette::PRESSED,
+                );
+            }
+        }
         if let Some((label, color, scale)) = text {
             // Bigger pop for big combos.
             let combo_boost = (judge.0.score().combo as f32 / 100.0).min(0.4);

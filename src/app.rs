@@ -69,7 +69,11 @@ pub enum Feedback {
     AutoPlayed(NoteId),
     Missed(NoteId),
     /// A press that matched no note.
-    Wrong(MidiNote),
+    Wrong {
+        pressed: MidiNote,
+        /// The nearest note that was due, if any.
+        expected: Option<MidiNote>,
+    },
 }
 
 /// The span of piano keys on screen.

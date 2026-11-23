@@ -338,6 +338,19 @@ impl Performance {
         }
     }
 
+    /// The player's pending note due near `time` whose pitch is closest to
+    /// `pitch`, to suggest after a wrong press.
+    pub fn expected_near(&self, song: &Song, pitch: MidiNote, time: Seconds) -> Option<NoteId> {
+        song.iter()
+            .filter(|(id, n)| {
+                self.statuses[id.0] == NoteStatus::Pending
+                    && self.hands.includes(n.hand)
+                    && (n.start.0 - time.0).abs() <= HIT_WINDOW.0
+            })
+            .min_by_key(|(_, n)| (i16::from(n.pitch.value()) - i16::from(pitch.value())).abs())
+            .map(|(id, _)| id)
+    }
+
     /// Judge a key press at `time`.
     pub fn press(&mut self, song: &Song, pitch: MidiNote, time: Seconds) -> PressOutcome {
         let candidate = song
