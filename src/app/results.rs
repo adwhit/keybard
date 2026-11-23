@@ -7,7 +7,7 @@ use tracing::{info, warn};
 
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Judge, Phase, palette};
-use crate::performance::{Score, Timing};
+use crate::performance::{Insights, Score, Timing};
 use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
 
@@ -38,6 +38,7 @@ pub struct LastResult {
     pub bars: Vec<Option<f32>>,
     /// 1-based first bar of the weakest stretch worth drilling.
     pub weakest: Option<u32>,
+    pub insights: Insights,
 }
 
 /// One cell of the per-bar accuracy strip on the results card.
@@ -97,6 +98,7 @@ fn record_finish(
             submission,
             bars,
             weakest,
+            insights: judge.0.insights(&song.0),
         });
     }
     if !finished {
@@ -141,6 +143,7 @@ fn spawn_card(commands: &mut Commands, result: &LastResult) {
         .accuracy()
         .map_or_else(|| "-".to_owned(), |a| format!("{:.1}% accuracy", a * 100.0));
     let banner = match (result.submission, score.is_full_combo()) {
+        _ if score.hits() == 0 => "Keep practising!".to_owned(),
         (Submission::NewBest { previous: Some(p) }, _) => {
             format!("NEW BEST!  +{}", score.points.saturating_sub(p.points))
         }
@@ -225,6 +228,9 @@ fn spawn_card(commands: &mut Commands, result: &LastResult) {
                 None => "Every bar perfect!".to_owned(),
             };
             card.spawn(text(advice, 14.0, palette::HUD_TEXT));
+            result.insights.summary().into_iter().for_each(|line| {
+                card.spawn(text(line, 13.0, palette::timing(Timing::Great)));
+            });
             card.spawn(text(
                 "Space to play again | Tab to change mode | Esc to quit",
                 12.0,

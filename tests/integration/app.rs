@@ -849,6 +849,17 @@ fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
         q.iter(h.app.world()).map(|t| t.0.clone()).collect()
     };
     assert!(texts.iter().any(|t| t.contains("bars 1-4")), "{texts:?}");
+    assert!(
+        texts
+            .iter()
+            .any(|t| t == "Most missed: E4 x12, C4 x6, G4 x6"),
+        "{texts:?}"
+    );
+    assert!(
+        texts.iter().any(|t| t == "Keep practising!"),
+        "no fanfare for zero hits: {texts:?}"
+    );
+    assert!(texts.iter().any(|t| t == "Right hand 0%"), "{texts:?}");
 
     h.tap(KeyCode::F3);
     let region = h

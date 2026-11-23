@@ -113,6 +113,8 @@ At the end you get a grade (S/A/B/C/D, by accuracy), your points, max combo and
 a breakdown, compared against your personal best for that song and mode. A
 strip of cells shows each bar's accuracy from red to green, and the card names
 your weakest 4-bar stretch: press F3 there to start drilling it in a loop.
+Coaching lines underneath give accuracy for each hand, your timing tendency
+("You rush: hits average 34 ms early") and the notes you missed most.
 Bests are saved in the user data directory, or a file passed with `--records`.
 Headless and snapshot runs never touch your bests.
 

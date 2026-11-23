@@ -1,8 +1,10 @@
 //! Game rules: how song time advances in each play mode, and how key presses
 //! are judged against the score. Pure logic, no Bevy.
 
+mod insights;
 mod score;
 
+pub use insights::{Insights, MOST_MISSED, Tendency};
 pub use score::{Grade, HIT_WINDOW, Heat, Score, Timing};
 
 use crate::music::MidiNote;
@@ -132,6 +134,8 @@ pub struct Performance {
     /// In Wait mode, how long the clock has been held at the current note.
     stall: Seconds,
     hands: Hands,
+    /// Timing of each hit note (negative = early), for insights.
+    offsets: Vec<Seconds>,
 }
 
 impl Performance {
@@ -141,6 +145,7 @@ impl Performance {
             score: Score::default(),
             stall: Seconds(0.0),
             hands: Hands::Both,
+            offsets: vec![Seconds(0.0); song.notes().len()],
         }
     }
 
@@ -293,6 +298,46 @@ impl Performance {
             .collect()
     }
 
+    /// What to work on, from the player's judged notes.
+    pub fn insights(&self, song: &Song) -> Insights {
+        let judged = |hand: Hand| {
+            let weights: Vec<f32> = song
+                .iter()
+                .filter(|(_, n)| n.hand == hand && self.hands.includes(hand))
+                .filter_map(|(id, _)| match self.statuses[id.0] {
+                    NoteStatus::Hit(t) => Some(t.weight()),
+                    NoteStatus::Missed => Some(0.0),
+                    NoteStatus::Pending | NoteStatus::AutoPlayed | NoteStatus::Skipped => None,
+                })
+                .collect();
+            (!weights.is_empty()).then(|| weights.iter().sum::<f32>() / weights.len() as f32)
+        };
+        let hit_offsets: Vec<f32> = song
+            .iter()
+            .filter(|(id, _)| matches!(self.statuses[id.0], NoteStatus::Hit(_)))
+            .map(|(id, _)| self.offsets[id.0].0)
+            .collect();
+        let mean_offset = (!hit_offsets.is_empty())
+            .then(|| Seconds(hit_offsets.iter().sum::<f32>() / hit_offsets.len() as f32));
+        let mut misses: Vec<(MidiNote, usize)> = Vec::new();
+        song.iter()
+            .filter(|(id, _)| self.statuses[id.0] == NoteStatus::Missed)
+            .for_each(
+                |(_, n)| match misses.iter_mut().find(|(p, _)| *p == n.pitch) {
+                    Some((_, count)) => *count += 1,
+                    None => misses.push((n.pitch, 1)),
+                },
+            );
+        misses.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        misses.truncate(MOST_MISSED);
+        Insights {
+            right_accuracy: judged(Hand::Right),
+            left_accuracy: judged(Hand::Left),
+            mean_offset,
+            most_missed: misses,
+        }
+    }
+
     /// Judge a key press at `time`.
     pub fn press(&mut self, song: &Song, pitch: MidiNote, time: Seconds) -> PressOutcome {
         let candidate = song
@@ -319,6 +364,7 @@ impl Performance {
                 let offset = (time - note.start) + waited;
                 let timing = Timing::from_offset(offset).unwrap_or(Timing::Good);
                 self.statuses[id.0] = NoteStatus::Hit(timing);
+                self.offsets[id.0] = offset;
                 self.score.record_hit(timing);
                 PressOutcome::Hit(Judgement {
                     note: id,

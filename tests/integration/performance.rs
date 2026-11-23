@@ -327,3 +327,77 @@ fn per_bar_accuracy_scores_each_bar_separately() {
     );
     assert_eq!(bars[2], None, "nothing judged yet");
 }
+
+#[test]
+fn insights_split_accuracy_by_hand_and_find_tendencies() {
+    use keybard::performance::Tendency;
+    // Right: C4 E4 at 0s/1s; left: C3 G2 at 0s/1s.
+    let song = two_hands();
+    let mut perf = Performance::new(&song);
+    hit(perf.press(&song, n(60), Seconds(-0.04)));
+    hit(perf.press(&song, n(64), Seconds(0.96)));
+    hit(perf.press(&song, n(48), Seconds(-0.03)));
+    perf.advance(&song, PlayMode::Play, Seconds(-1.0), Seconds(3.0)); // G2 missed
+    let insights = perf.insights(&song);
+    assert_eq!(insights.right_accuracy, Some(1.0));
+    assert!((insights.left_accuracy.unwrap() - 0.5).abs() < 1e-6);
+    assert!((insights.mean_offset.unwrap().0 + 0.0367).abs() < 1e-3);
+    assert_eq!(insights.tendency(), Tendency::Early);
+    assert_eq!(insights.most_missed, vec![(n(43), 1)]);
+}
+
+#[test]
+fn tendencies_need_a_clear_lean() {
+    use keybard::performance::{Insights, Tendency};
+    let with = |ms: f32| Insights {
+        mean_offset: Some(Seconds(ms / 1000.0)),
+        ..Insights::default()
+    };
+    assert_eq!(with(5.0).tendency(), Tendency::OnTime);
+    assert_eq!(with(-25.0).tendency(), Tendency::Early);
+    assert_eq!(with(30.0).tendency(), Tendency::Late);
+    assert_eq!(Insights::default().tendency(), Tendency::OnTime);
+}
+
+#[test]
+fn most_missed_notes_are_ranked_and_capped() {
+    let song = song_from("C4 D4 C4 D4 C4 E4 F4 G4");
+    let mut perf = Performance::new(&song);
+    perf.advance(&song, PlayMode::Play, Seconds(-1.0), Seconds(20.0));
+    let missed = perf.insights(&song).most_missed;
+    assert_eq!(missed.len(), 3);
+    assert_eq!(missed[0], (n(60), 3));
+    assert_eq!(missed[1], (n(62), 2));
+}
+
+#[test]
+fn insight_summaries_read_like_coaching() {
+    use keybard::performance::Insights;
+    let insights = Insights {
+        right_accuracy: Some(0.96),
+        left_accuracy: Some(0.714),
+        mean_offset: Some(Seconds(-0.034)),
+        most_missed: vec![(n(66), 3), (n(48), 2)],
+    };
+    assert_eq!(
+        insights.summary(),
+        vec![
+            "Right hand 96% | Left hand 71%".to_owned(),
+            "You rush: hits average 34 ms early".to_owned(),
+            "Most missed: F#4 x3, C3 x2".to_owned(),
+        ]
+    );
+    let steady = Insights {
+        right_accuracy: Some(1.0),
+        mean_offset: Some(Seconds(0.004)),
+        ..Insights::default()
+    };
+    assert_eq!(
+        steady.summary(),
+        vec![
+            "Right hand 100%".to_owned(),
+            "Steady timing: 4 ms average".to_owned()
+        ]
+    );
+    assert!(Insights::default().summary().is_empty());
+}
