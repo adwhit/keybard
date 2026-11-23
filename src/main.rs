@@ -6,6 +6,7 @@ use clap::{Parser, ValueEnum};
 use keybard::app::songs::{Playlist, SongSource};
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
+use keybard::midi_port::{self, PortChoice};
 use keybard::performance::{Hands, PlayMode};
 use keybard::song::Seconds;
 use keybard::{midi_file, records, render};
@@ -62,6 +63,12 @@ struct Cli {
     /// Start looping 4 bars from this bar number (F3 toggles in-app).
     #[arg(long = "loop", value_name = "BAR")]
     loop_from: Option<u32>,
+    /// Connect to the MIDI input whose name contains this text.
+    #[arg(long, value_name = "NAME", conflicts_with = "no_midi")]
+    midi_port: Option<String>,
+    /// List MIDI input ports and exit.
+    #[arg(long)]
+    list_midi_ports: bool,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -92,6 +99,14 @@ struct Cli {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if cli.list_midi_ports {
+        let ports = midi_port::list_ports();
+        if ports.is_empty() {
+            println!("No MIDI input ports found.");
+        }
+        ports.iter().for_each(|name| println!("{name}"));
+        return ExitCode::SUCCESS;
+    }
     let song = match &cli.midi {
         Some(path) => midi_file::load(path),
         None => cli.song.load(),
@@ -144,10 +159,10 @@ fn main() -> ExitCode {
     let exit = app::run(Options {
         song,
         mode: cli.mode.into(),
-        midi_input: if cli.no_midi {
-            MidiInput::Disabled
-        } else {
-            MidiInput::Enabled
+        midi_input: match (cli.no_midi, &cli.midi_port) {
+            (true, _) => MidiInput::Disabled,
+            (false, Some(name)) => MidiInput::Enabled(PortChoice::Named(name.clone())),
+            (false, None) => MidiInput::Enabled(PortChoice::First),
         },
         backend: match (&cli.snapshot, cli.headless) {
             (Some(dir), _) => Backend::Offscreen(SnapshotPlan {

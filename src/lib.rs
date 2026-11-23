@@ -7,6 +7,7 @@ pub mod fingering;
 pub mod key;
 pub mod layout;
 pub mod midi_file;
+pub mod midi_port;
 pub mod music;
 pub mod notation;
 pub mod performance;

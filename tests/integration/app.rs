@@ -1221,3 +1221,19 @@ fn f4_toggles_a_metronome_that_clicks_every_beat() {
     h.tap(KeyCode::F4);
     assert_eq!(*h.world().resource::<Metronome>(), Metronome::Off);
 }
+
+#[test]
+fn the_hud_says_when_midi_is_off() {
+    use keybard::app::input::MidiStatus;
+    let mut h = Harness::new(song(), PlayMode::Listen);
+    assert_eq!(*h.world().resource::<MidiStatus>(), MidiStatus::Off);
+    let texts: Vec<String> = {
+        let mut q = h.world().query::<&Text>();
+        q.iter(h.app.world()).map(|t| t.0.clone()).collect()
+    };
+    assert!(texts.iter().any(|t| t.contains("MIDI off")), "{texts:?}");
+    assert_eq!(
+        MidiStatus::Connected("Yamaha P-125".into()).label(),
+        "MIDI: Yamaha P-125"
+    );
+}

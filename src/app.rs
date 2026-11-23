@@ -46,6 +46,7 @@ pub use results::RecordStore;
 pub use snapshot::SnapshotPlan;
 
 use crate::layout::{self, KeyRange};
+use crate::midi_port::PortChoice;
 use crate::music::MidiNote;
 use crate::performance::{Hands, Judgement, Performance, PlayMode};
 use crate::song::{NoteId, Song};
@@ -114,9 +115,9 @@ pub enum Player {
     Autopilot,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MidiInput {
-    Enabled,
+    Enabled(PortChoice),
     Disabled,
 }
 

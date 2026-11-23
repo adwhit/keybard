@@ -6,6 +6,7 @@ mod fingering;
 mod key;
 mod layout;
 mod midi_file;
+mod midi_port;
 mod music;
 mod notation;
 mod performance;

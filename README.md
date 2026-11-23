@@ -156,7 +156,9 @@ that records every judgement as a coloured tick.
 | - / = | shift the computer-keyboard octave |
 
 A connected MIDI keyboard is picked up automatically (the first input port).
-Use `--no-midi` to disable it.
+`--list-midi-ports` shows what's available, `--midi-port yamaha` picks the
+first port whose name contains "yamaha", and `--no-midi` disables MIDI. The
+HUD shows which device is connected, or why none is.
 
 ## Development
 
@@ -193,6 +195,7 @@ Layout:
 
 - `src/music.rs`: pitches, pitch classes, clefs, staff positions
 - `src/song.rs`: song model and the small text notation used by `src/builtin.rs`
+- `src/midi_port.rs`: choosing a MIDI input port
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
@@ -218,5 +221,4 @@ lit keyboard, three play modes, timing grades, combos, results and personal
 bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
 piano-like additive synth.
 
-Not yet done: sampled piano sound, and
-choosing a MIDI port.
+Not yet done: sampled piano sound.

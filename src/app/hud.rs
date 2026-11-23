@@ -4,6 +4,7 @@
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::input::MidiStatus;
 use super::practice::Practice;
 use super::section::SectionLoop;
 use super::songs::SongScoped;
@@ -156,6 +157,7 @@ fn spawn_strip(mut commands: Commands) {
     ));
 }
 
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 fn update_info(
     mut text: Single<&mut Text, With<InfoText>>,
     transport: Res<Transport>,
@@ -164,6 +166,7 @@ fn update_info(
     section: Res<SectionLoop>,
     practice: Res<Practice>,
     metronome: Res<Metronome>,
+    midi: Res<MidiStatus>,
 ) {
     let state = match transport.state {
         PlayState::Playing => "",
@@ -187,9 +190,10 @@ fn update_info(
         total = clock(total),
     );
     text.0.push_str(&format!(
-        "\n{streak}-day streak | {minutes} min today",
+        "\n{streak}-day streak | {minutes} min today | {midi}",
         streak = practice.streak(),
-        minutes = practice.minutes_today()
+        minutes = practice.minutes_today(),
+        midi = midi.label()
     ));
     if let Some(looping) = &section.0 {
         let tempo = song.0.tempo;
