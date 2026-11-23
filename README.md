@@ -64,6 +64,11 @@ it, re-arms the notes and counts a pass. The HUD shows the pass number, how
 many passes were clean, and the last pass's hits, misses and wrong notes. The
 section is highlighted on the progress strip. F3 again stops looping.
 
+In Wait and Play the loop doubles as a speed trainer. Each clean pass (no
+misses or wrong notes) raises the speed 5% ("SPEED 75%"), up to full tempo,
+and a messy pass holds it. Drilling your weakest bars from the results card
+starts at 70%.
+
 ### Practising one hand
 
 `--hands right` (or `left`), or F2 in-app, makes you responsible for one hand

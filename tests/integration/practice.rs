@@ -71,3 +71,22 @@ fn weakest_section_ignores_unplayed_bars_and_perfect_runs() {
         Some(0)
     );
 }
+
+#[test]
+fn the_speed_trainer_steps_up_after_clean_passes_only() {
+    use keybard::practice::{DRILL_START_SPEED, trainer_speed};
+    assert!((trainer_speed(0.7, true) - 0.75).abs() < 1e-6);
+    assert_eq!(
+        trainer_speed(0.7, false),
+        0.7,
+        "a messy pass holds the speed"
+    );
+    assert_eq!(trainer_speed(0.98, true), 1.0, "capped at full tempo");
+    assert_eq!(trainer_speed(1.0, true), 1.0);
+    assert_eq!(
+        trainer_speed(1.3, true),
+        1.3,
+        "never slows a fast player down"
+    );
+    const { assert!(DRILL_START_SPEED < 1.0) };
+}

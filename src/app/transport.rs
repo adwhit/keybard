@@ -26,6 +26,10 @@ impl Speed {
     const MAX: f32 = 2.0;
     const STEP: f32 = 0.05;
 
+    pub fn new(value: f32) -> Self {
+        Self(value.clamp(Self::MIN, Self::MAX))
+    }
+
     pub fn get(self) -> f32 {
         self.0
     }

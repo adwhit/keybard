@@ -61,3 +61,16 @@ impl LoopRegion {
         (time >= self.end).then_some(self.start - lead)
     }
 }
+
+/// Drilling a weak section from the results card starts this slow.
+pub const DRILL_START_SPEED: f32 = 0.7;
+const TRAINER_STEP: f32 = 0.05;
+
+/// The speed for the next pass of a loop: a clean pass earns a step towards
+/// full tempo; anything else holds. Speeds above full tempo are left alone.
+pub fn trainer_speed(current: f32, clean: bool) -> f32 {
+    match (clean, current < 1.0) {
+        (true, true) => (current + TRAINER_STEP).min(1.0),
+        _ => current,
+    }
+}

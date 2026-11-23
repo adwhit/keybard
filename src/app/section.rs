@@ -4,12 +4,13 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use tracing::info;
 
+use super::effects::popup;
 use super::results::LastResult;
-use super::transport::{PlayState, Transport, advance};
+use super::transport::{PlayState, Speed, Transport, advance};
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout;
-use crate::performance::Score;
-use crate::practice::LoopRegion;
+use crate::performance::{Score, Timing};
+use crate::practice::{DRILL_START_SPEED, LoopRegion, trainer_speed};
 use crate::song::{Seconds, Tempo};
 
 /// How many bars F3 loops.
@@ -108,6 +109,7 @@ fn toggle(
         transport.time = looping.region.start + transport.start;
         judge.0.seek(&song.0, transport.time);
         transport.state = PlayState::Playing;
+        transport.speed = Speed::new(DRILL_START_SPEED);
         info!(bar, "drilling the weakest section");
         section.0 = Some(looping);
         return;
@@ -130,6 +132,7 @@ fn toggle(
 }
 
 fn wrap(
+    mut commands: Commands,
     mut section: ResMut<SectionLoop>,
     mut transport: ResMut<Transport>,
     song: Res<ActiveSong>,
@@ -149,6 +152,21 @@ fn wrap(
     looping.clean_passes += u32::from(pass.is_clean());
     looping.last_pass = Some(pass);
     looping.baseline = score;
+    if transport.mode.is_scored() {
+        let speed = trainer_speed(transport.speed.get(), pass.is_clean());
+        if speed != transport.speed.get() {
+            info!(speed, "speed trainer stepped up");
+            popup(
+                &mut commands,
+                &format!("SPEED {:.0}%", speed * 100.0),
+                palette::timing(Timing::Great),
+                Vec2::new(0.0, 60.0),
+                30.0,
+                1.0,
+            );
+        }
+        transport.speed = Speed::new(speed);
+    }
     transport.time = rewind;
     judge.0.seek(&song.0, rewind);
     info!(passes = looping.passes, ?pass, "loop pass complete");

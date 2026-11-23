@@ -770,6 +770,10 @@ fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
     assert_eq!(h.transport().state, PlayState::Playing);
     assert!(h.time() < region.start, "starts with a lead-in");
     assert_eq!(h.score(), Score::default(), "fresh score for the drill");
+    assert!(
+        (h.transport().speed.get() - 0.7).abs() < 1e-5,
+        "drills start slow"
+    );
     assert_eq!(h.count::<ResultsCard>(), 0);
 }
 
@@ -810,4 +814,38 @@ fn bars_brighten_as_they_approach() {
     h.run_until(0.95);
     let near = lightness(&mut h);
     assert!(near > far + 0.05, "{far} -> {near}");
+}
+
+#[test]
+fn clean_loop_passes_speed_up_towards_full_tempo() {
+    use keybard::app::section::SectionLoop;
+    let mut h = Harness::with(
+        song(),
+        PlayMode::Play,
+        Player::Autopilot,
+        RecordStore::Memory,
+    );
+    (0..6).for_each(|_| h.tap(KeyCode::ArrowDown));
+    assert!((h.transport().speed.get() - 0.7).abs() < 1e-5);
+    h.run_until(0.5);
+    h.tap(KeyCode::F3);
+    let passes = |h: &Harness| {
+        h.app
+            .world()
+            .resource::<SectionLoop>()
+            .0
+            .as_ref()
+            .unwrap()
+            .passes
+    };
+    let mut announced = false;
+    while passes(&h) < 2 {
+        h.app.update();
+        announced |= h.texts().contains(&"SPEED 75%".to_owned());
+    }
+    assert!(announced, "step-ups are announced");
+    assert!(
+        (h.transport().speed.get() - 0.8).abs() < 1e-5,
+        "two clean passes: +10%"
+    );
 }
