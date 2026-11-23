@@ -10,6 +10,7 @@ use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::layout::{self, staff};
 use crate::music::{Accidental, Clef, StaffPosition, StemDirection};
+use crate::notation::{Rest, RestShape, rests};
 use crate::performance::NoteStatus;
 use crate::song::{Beats, Hand, Note, NoteId, Seconds, Song};
 
@@ -21,6 +22,10 @@ struct ClefGizmos;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct NoteHead(pub NoteId);
+
+/// Rests for the current song, with the staff each belongs on.
+#[derive(Resource, Debug, Default, Clone)]
+pub struct SongRests(pub Vec<(Clef, Rest)>);
 
 /// The recommended-finger digit beside a notehead.
 #[derive(Component, Debug, Clone, Copy)]
@@ -90,10 +95,11 @@ pub fn plugin(app: &mut App) {
     app.init_gizmo_group::<NotationGizmos>()
         .init_gizmo_group::<ClefGizmos>()
         .add_systems(Startup, (configure_gizmos, create_head_assets))
-        .add_systems(Update, spawn_heads.in_set(SongLoad))
+        .init_resource::<SongRests>()
+        .add_systems(Update, (spawn_heads, find_rests).in_set(SongLoad))
         .add_systems(
             Update,
-            (update_heads, draw_staves, draw_note_marks).in_set(Phase::Present),
+            (update_heads, draw_staves, draw_note_marks, draw_rests).in_set(Phase::Present),
         );
 }
 
@@ -298,6 +304,38 @@ fn draw_staves(
         Vec2::new(staff::PLAYHEAD_X, top + 30.0),
         palette::PLAYHEAD,
     );
+}
+
+fn find_rests(song: Res<ActiveSong>, mut found: ResMut<SongRests>) {
+    found.0 = [Hand::Right, Hand::Left]
+        .into_iter()
+        .flat_map(|hand| {
+            rests(&song.0, hand)
+                .into_iter()
+                .map(move |rest| (clef_for(hand), rest))
+        })
+        .collect();
+}
+
+fn draw_rests(mut gizmos: Gizmos<ClefGizmos>, transport: Res<Transport>, found: Res<SongRests>) {
+    let now = transport.time;
+    found.0.iter().for_each(|(clef, rest)| {
+        // Whole-bar rests sit in the middle of their bar; others where they start.
+        let at = match rest.shape {
+            RestShape::WholeBar => rest.start + Seconds(rest.duration.0 / 2.0),
+            RestShape::Half | RestShape::Quarter | RestShape::Eighth => rest.start,
+        };
+        let x = staff::x(at - now);
+        if staff::is_visible(x) {
+            glyphs::draw_rest(
+                &mut gizmos,
+                rest.shape,
+                x,
+                staff::bottom_line(*clef),
+                palette::INK,
+            );
+        }
+    });
 }
 
 /// Ledger lines, stems, flags and accidentals for visible notes.

@@ -7,6 +7,7 @@ pub mod fingering;
 pub mod layout;
 pub mod midi_file;
 pub mod music;
+pub mod notation;
 pub mod performance;
 pub mod practice;
 pub mod records;

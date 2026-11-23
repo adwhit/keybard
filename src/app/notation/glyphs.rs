@@ -9,6 +9,7 @@ use bevy::prelude::*;
 
 use crate::layout::staff;
 use crate::music::Clef;
+use crate::notation::RestShape;
 
 fn to_world(origin: Vec2, p: Vec2) -> Vec2 {
     origin + p * staff::STEP
@@ -112,4 +113,47 @@ pub fn draw_sharp<C: GizmoConfigGroup>(gizmos: &mut Gizmos<C>, center: Vec2, col
             color,
         );
     });
+}
+
+/// Fill a rectangle (in world units) with horizontal gizmo lines.
+fn filled_rect<C: GizmoConfigGroup>(gizmos: &mut Gizmos<C>, min: Vec2, max: Vec2, color: Color) {
+    let rows = ((max.y - min.y) * 2.0).ceil().max(1.0) as usize;
+    (0..=rows).for_each(|i| {
+        let y = min.y + (max.y - min.y) * i as f32 / rows as f32;
+        gizmos.line_2d(Vec2::new(min.x, y), Vec2::new(max.x, y), color);
+    });
+}
+
+/// A rest glyph centred horizontally on `x`, on the staff whose bottom line
+/// is at `bottom`.
+pub fn draw_rest<C: GizmoConfigGroup>(
+    gizmos: &mut Gizmos<C>,
+    shape: RestShape,
+    x: f32,
+    bottom: f32,
+    color: Color,
+) {
+    let s = staff::STEP;
+    let at = |dx: f32, steps: f32| Vec2::new(x + dx * s, bottom + steps * s);
+    match shape {
+        // Hangs from the fourth line.
+        RestShape::WholeBar => filled_rect(gizmos, at(-1.2, 5.0), at(1.2, 6.0), color),
+        // Sits on the middle line.
+        RestShape::Half => filled_rect(gizmos, at(-1.2, 4.0), at(1.2, 5.0), color),
+        RestShape::Quarter => gizmos.linestrip_2d(
+            [
+                at(-0.6, 7.0),
+                at(0.7, 5.6),
+                at(-0.5, 4.6),
+                at(0.7, 3.2),
+                at(-0.6, 3.4),
+                at(0.2, 2.0),
+            ],
+            color,
+        ),
+        RestShape::Eighth => {
+            filled_dot(gizmos, at(-0.7, 5.3), 1.5, color);
+            gizmos.linestrip_2d([at(-0.7, 5.0), at(0.9, 5.6), at(-0.2, 2.2)], color);
+        }
+    }
 }

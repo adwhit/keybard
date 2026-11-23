@@ -1084,3 +1084,23 @@ fn bars_mark_where_the_hand_shifts_position() {
         "the F, where the thumb passes under"
     );
 }
+
+#[test]
+fn rests_are_found_for_the_loaded_song_and_rebuilt_on_switch() {
+    use keybard::app::notation::SongRests;
+    use keybard::notation::rests;
+    let mut h = playlist_harness(PlayMode::Listen);
+    let expected = |song: &Song| rests(song, Hand::Right).len() + rests(song, Hand::Left).len();
+    let twinkle = h.world().resource::<ActiveSong>().0.clone();
+    assert_eq!(
+        h.world().resource::<SongRests>().0.len(),
+        expected(&twinkle)
+    );
+    h.tap(KeyCode::PageDown);
+    let fur_elise = h.world().resource::<ActiveSong>().0.clone();
+    assert!(expected(&fur_elise) > 0);
+    assert_eq!(
+        h.world().resource::<SongRests>().0.len(),
+        expected(&fur_elise)
+    );
+}
