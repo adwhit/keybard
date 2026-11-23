@@ -127,7 +127,8 @@ Achievements: twelve goals unlock as you play. They include a first clear, a
 full combo, an S grade, 50 and 100 combos, 99% accuracy, a both-hands full
 combo, beating a song above full speed, 3- and 7-day streaks, a 30-minute day
 and bests on three songs. New ones are announced on the results card with a
-running count, and they're saved beside your bests (`achievements.txt`).
+running count, and they're saved beside your bests (`achievements.txt`). F5
+opens a gallery of all twelve, ticked off as you earn them.
 
 Practice habit: time spent playing (wall-clock, so slowed practice counts in
 full) is logged per day next to your bests (`practice.tsv`). At least a minute
@@ -154,6 +155,7 @@ that records every judgement as a coloured tick.
 | F2 | practise both hands / right / left |
 | F3 | loop the current 4 bars / stop looping |
 | F4 | metronome on / off |
+| F5 | achievements gallery |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
 | Esc | quit |

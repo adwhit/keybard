@@ -147,6 +147,27 @@ impl Achievements {
         self.owned.contains(&achievement)
     }
 
+    /// Unlock one directly (e.g. migrations, tests). Returns whether it's new.
+    pub fn grant(&mut self, achievement: Achievement) -> bool {
+        self.owned.insert(achievement)
+    }
+
+    /// One line per achievement, `[x]` when unlocked, with a count header.
+    pub fn gallery(&self) -> String {
+        let lines = Achievement::ALL.iter().map(|a| {
+            let mark = if self.has(*a) { "[x]" } else { "[ ]" };
+            format!("{mark} {:<14} {}", a.title(), a.description())
+        });
+        std::iter::once(format!(
+            "ACHIEVEMENTS {}/{}   (F5 to close)",
+            self.count(),
+            Achievement::ALL.len()
+        ))
+        .chain(lines)
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+
     /// Add whatever the run earned; return just the newly unlocked ones.
     pub fn unlock(&mut self, run: &RunSummary) -> Vec<Achievement> {
         Achievement::earned_by(run)

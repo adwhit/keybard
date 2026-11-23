@@ -58,6 +58,10 @@ pub struct BarCell(pub usize);
 #[derive(Component)]
 pub struct ResultsCard;
 
+/// The F5 overlay listing every achievement.
+#[derive(Component)]
+pub struct AchievementGallery;
+
 pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
     move |app: &mut App| {
         let records = match &store {
@@ -87,9 +91,13 @@ pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
             store: store.clone(),
             records,
         })
+        .add_systems(Startup, spawn_gallery)
+        .add_systems(Update, toggle_gallery.in_set(Phase::Input))
         .add_systems(
             Update,
-            (record_finish, show_card).chain().in_set(Phase::Present),
+            (record_finish, show_card, refresh_gallery)
+                .chain()
+                .in_set(Phase::Present),
         );
     }
 }
@@ -153,6 +161,55 @@ fn record_finish(
         commands.remove_resource::<LastResult>();
     }
     *was_finished = finished;
+}
+
+fn spawn_gallery(mut commands: Commands) {
+    commands.spawn((
+        AchievementGallery,
+        Text::new(""),
+        TextFont {
+            font_size: FontSize::Px(14.0),
+            ..default()
+        },
+        TextColor(palette::HUD_TEXT),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(18.0),
+            top: Val::Percent(30.0),
+            padding: UiRect::all(Val::Px(14.0)),
+            border: UiRect::all(Val::Px(2.0)),
+            ..default()
+        },
+        BackgroundColor(palette::BACKGROUND.with_alpha(0.97)),
+        BorderColor::all(palette::timing(Timing::Perfect)),
+        GlobalZIndex(20),
+        Visibility::Hidden,
+    ));
+}
+
+fn toggle_gallery(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut gallery: Single<&mut Visibility, With<AchievementGallery>>,
+) {
+    if keys.just_pressed(KeyCode::F5) {
+        **gallery = match **gallery {
+            Visibility::Hidden => Visibility::Inherited,
+            _ => Visibility::Hidden,
+        };
+    }
+}
+
+fn refresh_gallery(
+    unlocked: Res<Unlocked>,
+    mut gallery: Single<(&mut Text, &Visibility), With<AchievementGallery>>,
+) {
+    let (text, visibility) = &mut *gallery;
+    if **visibility != Visibility::Hidden {
+        let wanted = unlocked.achievements.gallery();
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+    }
 }
 
 fn show_card(

@@ -1299,3 +1299,31 @@ fn achievements_are_saved_next_to_the_bests() {
     let saved = std::fs::read_to_string(dir.path().join("achievements.txt")).unwrap();
     assert!(saved.contains("first-clear"), "{saved}");
 }
+
+#[test]
+fn f5_shows_the_achievement_gallery() {
+    use keybard::achievements::Achievement;
+    use keybard::app::results::{AchievementGallery, Unlocked};
+    let mut h = Harness::new(song(), PlayMode::Play);
+    let gallery = |h: &mut Harness| {
+        let mut q = h
+            .world()
+            .query_filtered::<(&Text, &Visibility), With<AchievementGallery>>();
+        let (text, vis) = q.single(h.app.world()).unwrap();
+        (text.0.clone(), *vis != Visibility::Hidden)
+    };
+    assert!(!gallery(&mut h).1, "hidden until asked for");
+    h.world()
+        .resource_mut::<Unlocked>()
+        .achievements
+        .grant(Achievement::FullCombo);
+    h.tap(KeyCode::F5);
+    let (text, shown) = gallery(&mut h);
+    assert!(shown);
+    assert!(text.contains("ACHIEVEMENTS 1/12"), "{text}");
+    assert!(text.contains("[x] Unbroken"), "{text}");
+    assert!(text.contains("[ ] S Rank"), "{text}");
+    assert_eq!(text.lines().count(), 1 + Achievement::ALL.len());
+    h.tap(KeyCode::F5);
+    assert!(!gallery(&mut h).1);
+}
