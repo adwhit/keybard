@@ -19,6 +19,7 @@ mod performance;
 mod practice;
 mod records;
 mod render;
+mod saves;
 mod song;
 mod streak;
 mod synth;

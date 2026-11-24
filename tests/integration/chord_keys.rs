@@ -33,3 +33,48 @@ fn chords_are_labelled_as_players_name_them() {
     assert_eq!(label(ChordKey::major(PitchClass::ASharp)), "Bb");
     assert_eq!(label(ChordKey::minor(PitchClass::FSharp)), "F#m");
 }
+
+mod book {
+    use keybard::chord_keys::{BOOK, ChordKey, Inversion};
+    use keybard::music::PitchClass;
+
+    use super::notes;
+
+    #[test]
+    fn the_book_has_every_major_and_minor_triad_once_easiest_first() {
+        assert_eq!(BOOK.len(), 24);
+        let mut labels: Vec<String> = BOOK.iter().map(|c| c.label()).collect();
+        assert_eq!(&labels[..4], ["C", "Am", "G", "Em"]);
+        labels.sort();
+        labels.dedup();
+        assert_eq!(labels.len(), 24);
+    }
+
+    #[test]
+    fn inversions_are_told_by_the_lowest_note() {
+        let c = ChordKey::major(PitchClass::C);
+        assert_eq!(c.inversion(&notes(&[60, 64, 67])), Some(Inversion::Root));
+        assert_eq!(c.inversion(&notes(&[64, 67, 72])), Some(Inversion::First));
+        assert_eq!(c.inversion(&notes(&[55, 60, 64])), Some(Inversion::Second));
+        assert_eq!(c.inversion(&notes(&[60, 63, 67])), None, "not C major");
+    }
+
+    #[test]
+    fn notes_are_spelled_for_the_key() {
+        let spell = |c: ChordKey| c.note_names().join(" ");
+        assert_eq!(spell(ChordKey::major(PitchClass::C)), "C E G");
+        assert_eq!(spell(ChordKey::minor(PitchClass::C)), "C Eb G");
+        assert_eq!(spell(ChordKey::major(PitchClass::ASharp)), "Bb D F");
+        assert_eq!(spell(ChordKey::major(PitchClass::E)), "E G# B");
+        assert_eq!(spell(ChordKey::minor(PitchClass::FSharp)), "F# A C#");
+    }
+
+    #[test]
+    fn inversions_are_named_with_their_notes() {
+        let c = ChordKey::major(PitchClass::C);
+        assert_eq!(c.voicing(Inversion::Root).join(" "), "C E G");
+        assert_eq!(c.voicing(Inversion::First).join(" "), "E G C");
+        assert_eq!(c.voicing(Inversion::Second).join(" "), "G C E");
+        assert_eq!(Inversion::First.label(), "first inversion");
+    }
+}

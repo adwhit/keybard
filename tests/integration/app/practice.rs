@@ -4,12 +4,7 @@ use super::*;
 
 #[test]
 fn practising_one_hand_ghosts_and_autoplays_the_other() {
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     h.tap(KeyCode::F2);
     assert_eq!(h.world().resource::<Judge>().0.hands(), Hands::Right);
 
@@ -35,12 +30,7 @@ fn practising_one_hand_ghosts_and_autoplays_the_other() {
 #[test]
 fn looping_a_section_repeats_it_and_counts_passes() {
     use keybard::app::section::SectionLoop;
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     h.run_until(0.5);
     h.tap(KeyCode::F3);
     let region = {
@@ -96,17 +86,17 @@ fn looping_a_section_repeats_it_and_counts_passes() {
 fn drilling_ode_to_joy() -> Harness {
     Harness::build(Options {
         song: keybard::builtin::BuiltinSong::OdeToJoy.load().unwrap(),
-        mode: PlayMode::Play,
+        settings: Settings {
+            mode: PlayMode::Play,
+            ..Settings::default()
+        },
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
         logging: Logging::Disabled,
         player: Player::Human,
-        records: RecordStore::Memory,
-        hands: Hands::Both,
+        saves: Saves::memory(),
         loop_from: Some(5),
         playlist: Default::default(),
-        practice_log: RecordStore::Memory,
-        view: Default::default(),
         screen: keybard::app::menu::Screen::Song,
     })
 }
@@ -197,17 +187,17 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
     let bar = song.tempo.bar_length();
     let mut h = Harness::build(Options {
         song,
-        mode: PlayMode::Wait,
+        settings: Settings {
+            mode: PlayMode::Wait,
+            ..Settings::default()
+        },
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
         logging: Logging::Disabled,
         player: Player::Human,
-        records: RecordStore::Memory,
-        hands: Hands::Both,
+        saves: Saves::memory(),
         loop_from: Some(5),
         playlist: Default::default(),
-        practice_log: RecordStore::Memory,
-        view: Default::default(),
         screen: keybard::app::menu::Screen::Song,
     });
     let region = h
@@ -228,12 +218,7 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
 #[test]
 fn clean_loop_passes_speed_up_towards_full_tempo() {
     use keybard::app::section::SectionLoop;
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     (0..6).for_each(|_| h.tap(KeyCode::ArrowDown));
     assert!((h.transport().speed.get() - 0.7).abs() < 1e-5);
     h.run_until(0.5);

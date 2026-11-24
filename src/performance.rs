@@ -22,23 +22,24 @@ enum Owner {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum PlayMode {
-    /// The song plays itself, with sound.
+    /// Time keeps flowing; notes you don't play in time are missed.
     #[default]
+    Play,
+    /// The song plays itself, with sound.
     Listen,
     /// Time stops at each note until you play it.
     Wait,
-    /// Time keeps flowing; notes you don't play in time are missed.
-    Play,
 }
 
 impl PlayMode {
-    pub const ALL: [Self; 3] = [Self::Listen, Self::Wait, Self::Play];
+    /// In the order offered: playing first.
+    pub const ALL: [Self; 3] = [Self::Play, Self::Listen, Self::Wait];
 
     pub fn next(self) -> Self {
         match self {
+            Self::Play => Self::Listen,
             Self::Listen => Self::Wait,
             Self::Wait => Self::Play,
-            Self::Play => Self::Listen,
         }
     }
 

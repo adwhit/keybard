@@ -11,6 +11,7 @@ use tracing::{info, warn};
 
 use super::controls::{Control, ReadControls};
 use super::falling::View;
+use super::input::MidiEcho;
 use super::songs::{Playlist, Titles};
 use super::transport::{Metronome, Transport};
 use super::widgets::capitalise;
@@ -77,6 +78,7 @@ fn install(world: &mut World) {
                     ..default()
                 }),
             ),
+            &item(Control::OpenPlayers, "Switch Player..."),
             &separator(),
             &PredefinedMenuItem::hide(None),
             &PredefinedMenuItem::hide_others(None),
@@ -124,6 +126,7 @@ fn install(world: &mut World) {
             &separator(),
             &item(Control::ToggleLoop, "Loop 4 Bars"),
             &check(Control::ToggleMetronome, "Metronome", &mut checks),
+            &check(Control::ToggleMidiEcho, "Mute MIDI Keyboard", &mut checks),
         ],
     );
 
@@ -147,6 +150,7 @@ fn install(world: &mut World) {
             &check(Control::ToggleSightReading, "Sight-Reading", &mut checks),
             &item(Control::CycleLabels, "Cycle Bar Labels"),
             &item(Control::ToggleAchievements, "Achievements"),
+            &item(Control::OpenChordBook, "Chord Book"),
             &separator(),
             &PredefinedMenuItem::fullscreen(None),
         ],
@@ -200,6 +204,7 @@ fn sync_checks(
     playlist: Res<Playlist>,
     view: Res<View>,
     metronome: Res<Metronome>,
+    echo: Res<MidiEcho>,
 ) {
     let Some(bar) = bar else {
         return;
@@ -211,6 +216,7 @@ fn sync_checks(
             Control::SelectSong(i) => i == playlist.current(),
             Control::ToggleSightReading => *view == View::SightReading,
             Control::ToggleMetronome => *metronome == Metronome::On,
+            Control::ToggleMidiEcho => *echo == MidiEcho::Mute,
             _ => false,
         };
         if item.is_checked() != on {

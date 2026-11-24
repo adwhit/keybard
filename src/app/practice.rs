@@ -22,6 +22,30 @@ pub struct Practice {
 }
 
 impl Practice {
+    /// Load the practice log kept in `store`.
+    pub fn open(store: RecordStore) -> Self {
+        let log = match &store {
+            RecordStore::File(path) => PracticeLog::load(path).unwrap_or_else(|err| {
+                warn!(%err, "could not load practice log; starting fresh");
+                PracticeLog::default()
+            }),
+            RecordStore::Memory => PracticeLog::default(),
+        };
+        Self {
+            store,
+            log,
+            today: Day::today(),
+            unsaved: Seconds(0.0),
+        }
+    }
+
+    /// Save what's unsaved, then keep the log in `store` instead (another
+    /// player's).
+    pub fn switch(&mut self, store: RecordStore) {
+        self.save();
+        *self = Self::open(store);
+    }
+
     pub fn streak(&self) -> u32 {
         self.log.streak(self.today)
     }
@@ -55,20 +79,8 @@ impl Practice {
 
 pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
     move |app: &mut App| {
-        let log = match &store {
-            RecordStore::File(path) => PracticeLog::load(path).unwrap_or_else(|err| {
-                warn!(%err, "could not load practice log; starting fresh");
-                PracticeLog::default()
-            }),
-            RecordStore::Memory => PracticeLog::default(),
-        };
-        app.insert_resource(Practice {
-            store: store.clone(),
-            log,
-            today: Day::today(),
-            unsaved: Seconds(0.0),
-        })
-        .add_systems(Update, accumulate.in_set(Phase::Simulate).after(advance));
+        app.insert_resource(Practice::open(store.clone()))
+            .add_systems(Update, accumulate.in_set(Phase::Simulate).after(advance));
     }
 }
 

@@ -9,6 +9,7 @@ use crossbeam_channel::{Receiver, Sender};
 use tracing::{debug, info, warn};
 
 use super::audio::PlayTone;
+use super::controls::{Control, not_typing};
 use super::transport::{PlayState, Transport};
 use super::{ActiveSong, Feedback, Judge, MidiInput, Phase};
 use crate::dynamics::{self, Touch, Velocity};
@@ -90,16 +91,38 @@ const COMPUTER_KEYS: [(KeyCode, i16); 32] = [
 /// the key will be held when the sound starts).
 const PRESS_TONE: Seconds = Seconds(0.6);
 
-pub fn plugin(midi_input: MidiInput) -> impl Fn(&mut App) {
+/// Whether notes from the MIDI keyboard also sound through keybard. A
+/// keyboard with its own speakers sounds them already; muting stops the
+/// doubled sound. Only your MIDI presses are muted: computer keys, and
+/// everything the computer plays (the other hand, Listen mode, warm-ups),
+/// still sound.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MidiEcho {
+    #[default]
+    Play,
+    Mute,
+}
+
+impl MidiEcho {
+    fn sounds(self, source: InputSource) -> bool {
+        !(self == Self::Mute && source == InputSource::Midi)
+    }
+}
+
+pub fn plugin(midi_input: MidiInput, echo: MidiEcho) -> impl Fn(&mut App) {
     move |app: &mut App| {
         app.add_message::<NoteInput>()
             .init_resource::<HeldKeys>()
+            .insert_resource(echo)
+            .add_systems(Update, toggle_echo.in_set(Phase::Input))
             .insert_resource(ComputerKeyboardBase(
                 MidiNote::new(48).unwrap_or(MidiNote::MIDDLE_C),
             ))
             .add_systems(
                 Update,
-                (computer_keyboard, shift_octave).in_set(Phase::Input),
+                (computer_keyboard, shift_octave)
+                    .run_if(not_typing)
+                    .in_set(Phase::Input),
             )
             .add_systems(
                 Update,
@@ -205,6 +228,7 @@ fn midi_keyboard(rx: Res<MidiReceiver>, mut out: MessageWriter<NoteInput>) {
     }));
 }
 
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 fn judge_presses(
     mut inputs: MessageReader<NoteInput>,
     mut held: ResMut<HeldKeys>,
@@ -213,15 +237,18 @@ fn judge_presses(
     song: Res<ActiveSong>,
     mut tones: MessageWriter<PlayTone>,
     mut feedback: MessageWriter<Feedback>,
+    echo: Res<MidiEcho>,
 ) {
     inputs.read().for_each(|input| match input.edge {
         KeyEdge::Down => {
             held.0.insert(input.note);
-            tones.write(PlayTone {
-                note: input.note,
-                duration: PRESS_TONE,
-                velocity: input.velocity,
-            });
+            if echo.sounds(input.source) {
+                tones.write(PlayTone {
+                    note: input.note,
+                    duration: PRESS_TONE,
+                    velocity: input.velocity,
+                });
+            }
             let judging = transport.mode.is_scored() && transport.state == PlayState::Playing;
             if judging {
                 let outcome = judge.0.press(&song.0, input.note, transport.time);
@@ -256,6 +283,19 @@ fn judge_presses(
             held.0.remove(&input.note);
         }
     });
+}
+
+fn toggle_echo(mut controls: MessageReader<Control>, mut echo: ResMut<MidiEcho>) {
+    controls
+        .read()
+        .filter(|c| **c == Control::ToggleMidiEcho)
+        .for_each(|_| {
+            *echo = match *echo {
+                MidiEcho::Play => MidiEcho::Mute,
+                MidiEcho::Mute => MidiEcho::Play,
+            };
+            info!(echo = ?*echo, "toggled MIDI keyboard sound");
+        });
 }
 
 fn parse_midi_message(bytes: &[u8]) -> Option<(MidiNote, KeyEdge, Velocity)> {

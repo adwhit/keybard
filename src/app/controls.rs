@@ -29,6 +29,8 @@ pub enum Control {
     SetHands(Hands),
     ToggleLoop,
     ToggleMetronome,
+    /// Mute (or unmute) notes played on the MIDI keyboard.
+    ToggleMidiEcho,
     ToggleAchievements,
     ToggleSightReading,
     CycleLabels,
@@ -39,6 +41,14 @@ pub enum Control {
     StartSong,
     /// Back to the start screen.
     OpenMenu,
+    /// The chord book (from the start screen).
+    OpenChordBook,
+    /// The players screen (from the start screen).
+    OpenPlayers,
+    /// Switch to the player at this index in the players list.
+    SelectPlayer(usize),
+    /// Start typing a new player's name.
+    NewPlayer,
     /// Escape: from a song to the start screen, from there out of the app.
     Back,
     Quit,
@@ -60,6 +70,8 @@ impl Control {
             Self::ToggleMetronome => KeyCode::F4,
             Self::ToggleAchievements => KeyCode::F5,
             Self::ToggleSightReading => KeyCode::F6,
+            Self::ToggleMidiEcho => KeyCode::F7,
+            Self::OpenChordBook => KeyCode::F8,
             Self::CycleLabels => KeyCode::F1,
             Self::PreviousSong => KeyCode::PageUp,
             Self::NextSong => KeyCode::PageDown,
@@ -68,6 +80,9 @@ impl Control {
             Self::SetMode(_)
             | Self::SetHands(_)
             | Self::SelectSong(_)
+            | Self::SelectPlayer(_)
+            | Self::OpenPlayers
+            | Self::NewPlayer
             | Self::OpenMenu
             | Self::Quit => return None,
         })
@@ -94,6 +109,10 @@ impl Control {
             Self::ToggleMetronome => ChordKey::major(P::DSharp),
             Self::CycleLabels => ChordKey::major(P::GSharp),
             Self::ToggleAchievements => ChordKey::major(P::CSharp),
+            Self::ToggleMidiEcho => ChordKey::major(P::FSharp),
+            Self::OpenChordBook => ChordKey::major(P::G),
+            Self::OpenPlayers => ChordKey::major(P::B),
+            Self::SelectPlayer(i) => return PLAYER_CHORDS.get(i).copied(),
             Self::SelectSong(i) => return SONG_CHORDS.get(i).copied(),
             _ => return None,
         })
@@ -105,6 +124,7 @@ impl Control {
             Self::SetMode(mode) => format!("mode:{}", mode.label()),
             Self::SetHands(hands) => format!("hands:{}", hands.label()),
             Self::SelectSong(i) => format!("song:{i}"),
+            Self::SelectPlayer(i) => format!("player:{i}"),
             other => format!("{other:?}"),
         }
     }
@@ -125,11 +145,14 @@ impl Control {
         if let Some(index) = id.strip_prefix("song:") {
             return index.parse().ok().map(Self::SelectSong);
         }
+        if let Some(index) = id.strip_prefix("player:") {
+            return index.parse().ok().map(Self::SelectPlayer);
+        }
         Self::PLAIN.into_iter().find(|c| c.id() == id)
     }
 
     /// Every command without a parameter.
-    const PLAIN: [Self; 19] = [
+    const PLAIN: [Self; 23] = [
         Self::TogglePlay,
         Self::Restart,
         Self::SeekBack,
@@ -142,17 +165,21 @@ impl Control {
         Self::ToggleMetronome,
         Self::ToggleAchievements,
         Self::ToggleSightReading,
+        Self::ToggleMidiEcho,
+        Self::OpenChordBook,
         Self::CycleLabels,
         Self::PreviousSong,
         Self::NextSong,
         Self::StartSong,
         Self::OpenMenu,
+        Self::OpenPlayers,
+        Self::NewPlayer,
         Self::Back,
         Self::Quit,
     ];
 
     /// Commands bound to a key, for mapping key presses.
-    const SHORTCUTS: [Self; 17] = [
+    const SHORTCUTS: [Self; 19] = [
         Self::TogglePlay,
         Self::Restart,
         Self::SeekBack,
@@ -165,6 +192,8 @@ impl Control {
         Self::ToggleMetronome,
         Self::ToggleAchievements,
         Self::ToggleSightReading,
+        Self::ToggleMidiEcho,
+        Self::OpenChordBook,
         Self::CycleLabels,
         Self::PreviousSong,
         Self::NextSong,
@@ -185,6 +214,29 @@ const SONG_CHORDS: [ChordKey; 8] = [
     ChordKey::minor(PitchClass::ASharp),
 ];
 
+/// Players on the players screen, in list order.
+const PLAYER_CHORDS: [ChordKey; 8] = [
+    ChordKey::major(PitchClass::C),
+    ChordKey::major(PitchClass::G),
+    ChordKey::major(PitchClass::F),
+    ChordKey::major(PitchClass::D),
+    ChordKey::major(PitchClass::A),
+    ChordKey::major(PitchClass::E),
+    ChordKey::major(PitchClass::ASharp),
+    ChordKey::major(PitchClass::DSharp),
+];
+
+/// A name being typed: the computer keyboard types letters instead of
+/// playing notes or triggering shortcuts.
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
+pub struct Typing(pub Option<String>);
+
+/// Run condition: the computer keyboard is a piano and shortcuts, not a
+/// typewriter.
+pub fn not_typing(typing: Res<Typing>) -> bool {
+    typing.0.is_none()
+}
+
 /// Extra keys that also trigger a command.
 const ALIASES: [(KeyCode, Control); 2] = [
     (KeyCode::BracketLeft, Control::Slower),
@@ -202,7 +254,11 @@ pub struct ReadControls;
 pub fn plugin(app: &mut App) {
     app.add_message::<Control>()
         .init_resource::<ChordHand>()
-        .add_systems(Update, (keyboard, chords).in_set(ReadControls))
+        .init_resource::<Typing>()
+        .add_systems(
+            Update,
+            (keyboard.run_if(not_typing), chords).in_set(ReadControls),
+        )
         .add_observer(clicked);
 }
 

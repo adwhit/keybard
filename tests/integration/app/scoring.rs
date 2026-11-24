@@ -163,7 +163,7 @@ fn autopilot_plays_a_whole_song_and_earns_a_result() {
         .collect();
     let song = Song::new("quick", tempo, notes).unwrap();
     let notes = song.notes().len();
-    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, Saves::memory());
     let end = h.world().resource::<ActiveSong>().0.duration().0;
     h.run_until(end + 1.4);
     h.frames(30);
@@ -190,7 +190,8 @@ fn autopilot_plays_a_whole_song_and_earns_a_result() {
 #[test]
 fn the_hud_chases_your_personal_best_live() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("bests.tsv");
+    let saves = Saves::at(dir.path());
+    let path = saves.file(&saves.current(), SaveFile::Bests).unwrap();
     // A best of 400 points in Play mode, both hands.
     std::fs::write(
         &path,
@@ -201,12 +202,7 @@ fn the_hud_chases_your_personal_best_live() {
         ),
     )
     .unwrap();
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Human,
-        RecordStore::File(path),
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Human, saves);
     h.run_until(-0.5);
     assert!(
         h.ui_texts()
@@ -243,13 +239,9 @@ fn the_hud_chases_your_personal_best_live() {
 #[test]
 fn personal_bests_are_saved_to_disk() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("bests.tsv");
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Wait,
-        Player::Autopilot,
-        RecordStore::File(path.clone()),
-    );
+    let saves = Saves::at(dir.path());
+    let path = saves.file(&saves.current(), SaveFile::Bests).unwrap();
+    let mut h = Harness::with(song(), PlayMode::Wait, Player::Autopilot, saves);
     h.run_until(4.4);
     h.frames(30);
     assert_eq!(h.transport().state, PlayState::Finished);
@@ -275,12 +267,7 @@ fn personal_bests_are_saved_to_disk() {
 
 #[test]
 fn listen_mode_is_not_scored_and_shows_no_results() {
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Listen,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Listen, Player::Autopilot, Saves::memory());
     h.run_until(4.4);
     h.frames(30);
     assert_eq!(h.score(), Score::default());
@@ -308,7 +295,7 @@ fn a_hot_streak_sets_the_screen_on_fire_and_breaking_it_cools_down() {
     let tempo = Tempo::from_bpm(240.0, 4);
     let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(10), Hand::Right, tempo).unwrap();
     let song = Song::new("streak", tempo, notes).unwrap();
-    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, RecordStore::Memory);
+    let mut h = Harness::with(song, PlayMode::Play, Player::Autopilot, Saves::memory());
 
     let mut saw_on_fire_banner = false;
     while h.score().heat() != Heat::OnFire {
@@ -342,7 +329,7 @@ fn results_show_per_bar_accuracy_and_f3_drills_the_weakest_bars() {
     let tempo = Tempo::from_bpm(240.0, 4);
     let notes = parse_voice(&"C4 E4 G4 E4 ".repeat(6), Hand::Right, tempo).unwrap();
     let song = Song::new("bars", tempo, notes).unwrap();
-    let mut h = Harness::with(song, PlayMode::Play, Player::Human, RecordStore::Memory);
+    let mut h = Harness::with(song, PlayMode::Play, Player::Human, Saves::memory());
     // Play nothing at all: every bar is missed.
     while h.transport().state != PlayState::Finished {
         h.app.update();
@@ -415,12 +402,7 @@ fn the_hud_says_when_midi_is_off() {
 fn finishing_well_unlocks_achievements_once() {
     use keybard::achievements::Achievement;
     use keybard::app::results::Unlocked;
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     while h.transport().state != PlayState::Finished {
         h.app.update();
     }
@@ -458,18 +440,16 @@ fn finishing_well_unlocks_achievements_once() {
 #[test]
 fn achievements_are_saved_next_to_the_bests() {
     let dir = tempfile::tempdir().unwrap();
-    let bests = dir.path().join("bests.tsv");
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Wait,
-        Player::Autopilot,
-        RecordStore::File(bests),
-    );
+    let saves = Saves::at(dir.path());
+    let achievements = saves
+        .file(&saves.current(), SaveFile::Achievements)
+        .unwrap();
+    let mut h = Harness::with(song(), PlayMode::Wait, Player::Autopilot, saves);
     while h.transport().state != PlayState::Finished {
         h.app.update();
     }
     h.frames(2);
-    let saved = std::fs::read_to_string(dir.path().join("achievements.txt")).unwrap();
+    let saved = std::fs::read_to_string(achievements).unwrap();
     assert!(saved.contains("first-clear"), "{saved}");
 }
 
@@ -515,12 +495,7 @@ fn wrong_notes_suggest_the_right_one() {
 fn sight_reading_a_song_well_unlocks_sight_reader() {
     use keybard::achievements::Achievement;
     use keybard::app::falling::View;
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     h.tap(KeyCode::F6);
     assert_eq!(*h.world().resource::<View>(), View::SightReading);
     while h.transport().state != PlayState::Finished {
@@ -575,20 +550,20 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
     let pick = for_day(today, songs.len()).song;
     let mut h = Harness::build(Options {
         song: songs[pick].load().unwrap(),
-        mode: PlayMode::Play,
+        settings: Settings {
+            mode: PlayMode::Play,
+            ..Settings::default()
+        },
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
         logging: Logging::Disabled,
         player: Player::Autopilot,
-        records: RecordStore::Memory,
-        hands: Hands::Both,
+        saves: Saves::memory(),
         loop_from: None,
         playlist: Playlist::new(
             songs.iter().map(|b| SongSource::Builtin(*b)).collect(),
             pick,
         ),
-        practice_log: RecordStore::Memory,
-        view: Default::default(),
         screen: keybard::app::menu::Screen::Song,
     });
     assert_eq!(h.world().resource::<Practice>().today, today);
@@ -630,12 +605,7 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
 
 #[test]
 fn other_songs_dont_complete_the_challenge() {
-    let mut h = Harness::with(
-        song(),
-        PlayMode::Play,
-        Player::Autopilot,
-        RecordStore::Memory,
-    );
+    let mut h = Harness::with(song(), PlayMode::Play, Player::Autopilot, Saves::memory());
     while h.transport().state != PlayState::Finished {
         h.app.update();
     }
@@ -643,5 +613,75 @@ fn other_songs_dont_complete_the_challenge() {
     assert!(
         h.world().resource::<LastResult>().challenge == ChallengeOutcome::NotMet,
         "no playlist, no challenge"
+    );
+}
+
+/// Every tone requested over `frames` frames.
+fn tones_over(h: &mut Harness, frames: usize) -> Vec<PlayTone> {
+    (0..frames)
+        .flat_map(|_| {
+            h.app.update();
+            h.tones()
+        })
+        .collect()
+}
+
+#[test]
+fn muting_the_midi_keyboard_silences_only_your_midi_notes() {
+    use keybard::app::input::MidiEcho;
+    let mut h = Harness::new(song(), PlayMode::Play);
+    assert_eq!(*h.world().resource::<MidiEcho>(), MidiEcho::Play);
+    h.tap(KeyCode::F7);
+    assert_eq!(*h.world().resource::<MidiEcho>(), MidiEcho::Mute);
+    h.run_until(-0.02);
+
+    // Your MIDI keyboard sounds by itself: no echo...
+    h.midi(60, KeyEdge::Down);
+    assert!(
+        !h.tones().iter().any(|t| t.note == n(60)),
+        "MIDI press muted"
+    );
+    assert!(matches!(h.status(C4), NoteStatus::Hit(_)), "still judged");
+    // ...but the computer keys have no sound of their own, so they still do.
+    h.key(KeyCode::KeyZ, ButtonState::Pressed);
+    assert!(
+        h.tones().iter().any(|t| t.note == n(48)),
+        "computer key sounds"
+    );
+
+    // F7 again unmutes.
+    h.tap(KeyCode::F7);
+    h.midi(61, KeyEdge::Down);
+    assert!(h.tones().iter().any(|t| t.note == n(61)));
+}
+
+#[test]
+fn muted_midi_still_hears_the_hand_the_computer_plays() {
+    use keybard::app::input::MidiEcho;
+    let mut h = Harness::new(song(), PlayMode::Play);
+    h.tap(KeyCode::F7);
+    // Practise the left hand only: the right hand (C4 at 0s) is played for you.
+    h.tap(KeyCode::F2);
+    h.tap(KeyCode::F2);
+    assert_eq!(h.world().resource::<Judge>().0.hands(), Hands::Left);
+    assert_eq!(*h.world().resource::<MidiEcho>(), MidiEcho::Mute);
+    h.run_until(-0.1);
+    let tones = tones_over(&mut h, 20);
+    assert!(
+        tones.iter().any(|t| t.note == n(60)),
+        "right hand still sounds"
+    );
+}
+
+#[test]
+fn the_hud_says_when_midi_notes_are_muted() {
+    let mut h = Harness::new(song(), PlayMode::Play);
+    assert!(!h.ui_texts().iter().any(|t| t.contains("muted")));
+    h.tap(KeyCode::F7);
+    h.frames(1);
+    assert!(
+        h.ui_texts().iter().any(|t| t.contains("MIDI notes muted")),
+        "{:?}",
+        h.ui_texts()
     );
 }

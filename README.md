@@ -24,7 +24,7 @@ Needs a recent stable Rust toolchain and [`just`](https://just.systems)
 
 ```bash
 just run                           # open the start screen (release build)
-just play --song twinkle           # straight into a song, Listen mode
+just play --song twinkle           # straight into a song, Play mode
 just play --song twinkle --mode wait
 just play-midi path/to/song.mid
 just play --mode play --autopilot  # watch the built-in player go for a full combo
@@ -33,8 +33,8 @@ just snapshot                      # render PNGs offscreen into target/snapshots
 just listen twinkle                # render the song to target/twinkle.wav
 ```
 
-`just run` opens on the start screen: click a song, a mode (Listen, Wait or
-Play) and which hands you'll play, toggle sight-reading or the metronome, then
+`just run` opens on the start screen: click a song, a mode (Play, the
+default, then Listen or Wait) and which hands you'll play, toggle sight-reading or the metronome, then
 **Start** (or press Enter). Escape during a song comes back to it, and Escape
 there quits. Giving a song, MIDI file, `--mode`, `--loop` or `--autopilot` on
 the command line goes straight into the song (`--start-screen` opens the start
@@ -48,7 +48,40 @@ the piano: each one shows its chord in a small gold badge (Start and Play
 again are C, Next song G, Drill F, Start screen Am; songs, modes, hands and
 options have their own). Any octave or inversion works, from a MIDI keyboard
 or the computer keys; release everything before the next chord. Chords only
-press buttons that are on screen, so mid-song they're just notes.
+press buttons that are on screen, so mid-song they're just notes. The start
+screen leaves the piano in view and names what you're holding ("You're
+playing Csus4 (no button)").
+
+The **Chord book** (start screen, chord G, or F8) has a page for each of the
+24 major and minor triads, easiest first: the chord's notes and makeup, its
+keys lit on the piano, and a challenge to play it in root position, first and
+second inversion. Each ticks off as you play it, and the book counts the
+chords you've mastered (for this session). Left/Right or the buttons turn
+pages; the book's own buttons have no chords, so playing is always practice.
+
+### Players and saved settings
+
+Each player has their own bests, achievements, practice streak and settings,
+kept in the user data directory under `profiles/<name>/` (the first run makes
+"Player 1"). The start screen says who's playing; **Switch player** (chord B,
+or the keybard menu) lists everyone to pick from, and **New player** lets you
+type a name (Enter adds it, Esc cancels; while typing, the computer keys type
+rather than play). keybard remembers who played last.
+
+Settings save themselves as you change them: mode, hands, sight-reading,
+metronome, bar labels, MIDI mute, the last song and chord-book progress. Give
+`--mode`, `--hands`, `--song`, `--sight-reading` or `--mute-midi` to override
+them for a run; `--player NAME` plays as someone else (created if new) and
+`--data-dir DIR` keeps everything somewhere else. Headless and snapshot runs
+keep nothing unless given `--data-dir`.
+
+A finished song in Listen mode ends on a card: **Play it** (start it over in
+Play mode), **Listen again**, **Next song** or **Start screen**.
+
+If your MIDI keyboard makes its own sound, **Mute MIDI keyboard** (start
+screen, Play menu, F7 or `--mute-midi`) stops keybard doubling it. Only your
+MIDI notes go quiet: computer keys still sound, and so does everything
+keybard plays for you (the other hand, Listen mode, warm-ups, metronome).
 
 Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
 `minuet` (Minuet in G, simplified) and `jingle-bells` (the chorus). Any Standard MIDI File
@@ -67,9 +100,9 @@ your best grade and points for the chosen mode and hands.
 
 ### Modes (Tab cycles)
 
+- **Play** (default): the clock keeps running. Notes you miss by more than 0.2s count as missed.
 - **Listen**: the song plays itself.
 - **Wait**: the clock stops at each note until you play it (all notes of a chord).
-- **Play**: the clock keeps running. Notes you miss by more than 0.2s count as missed.
 
 ### Sound
 
@@ -177,7 +210,7 @@ strip of cells shows each bar's accuracy from red to green, and the card names
 your weakest 4-bar stretch: press F3 there to start drilling it in a loop.
 Coaching lines underneath give accuracy for each hand, your timing tendency
 ("You rush: hits average 34 ms early") and the notes you missed most.
-Bests are saved in the user data directory, or a file passed with `--records`.
+Bests are saved per player (see Players below).
 Headless and snapshot runs never touch your bests.
 
 Reading ahead: your bars brighten over their last half-second of fall, and a
@@ -192,7 +225,7 @@ running count, and they're saved beside your bests (`achievements.txt`). F5
 opens a gallery of all thirteen, ticked off as you earn them.
 
 Practice habit: time spent playing (wall-clock, so slowed practice counts in
-full) is logged per day next to your bests (`practice.tsv`). At least a minute
+full) is logged per day with each player's bests (`practice.tsv`). At least a minute
 on a day extends your day streak. The HUD and results card show the streak and
 today's minutes, and crossing the day's minute announces "3-DAY STREAK!".
 Days follow your local clock.
@@ -219,6 +252,8 @@ that records every judgement as a coloured tick.
 | F4 | metronome on / off |
 | F5 | achievements gallery |
 | F6 | sight-reading mode (no bars or key cues) |
+| F7 | mute / unmute notes from the MIDI keyboard |
+| F8 | chord book (from the start screen) |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
 | Enter | start the song (start screen) |
@@ -273,6 +308,7 @@ Layout:
 - `src/midi_file.rs`: `.mid` loading with tempo maps
 - `src/performance.rs`: game rules (time advance per mode, timing grades, combo)
 - `src/records.rs`: personal bests and their TSV file
+- `src/saves.rs`: players, their folders and the settings file
 - `src/achievements.rs`: achievement rules and persistence
 - `src/challenge.rs`: the daily challenge
 - `src/streak.rs`: per-day practice log and day streaks

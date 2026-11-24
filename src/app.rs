@@ -9,6 +9,7 @@
 
 mod audio;
 mod autopilot;
+pub mod book;
 pub mod controls;
 pub mod effects;
 pub mod falling;
@@ -21,6 +22,7 @@ mod menubar;
 pub mod notation;
 pub mod palette;
 pub mod piano;
+pub mod players;
 pub mod practice;
 pub mod results;
 pub mod section;
@@ -54,7 +56,8 @@ use crate::dynamics::Touch;
 use crate::layout::{self, KeyRange};
 use crate::midi_port::PortChoice;
 use crate::music::MidiNote;
-use crate::performance::{Hands, Judgement, Performance, PlayMode};
+use crate::performance::{Judgement, Performance};
+use crate::saves::{SaveFile, Saves, Settings};
 use crate::song::{NoteId, Song};
 use transport::{PlayState, Transport};
 
@@ -138,23 +141,21 @@ pub enum MidiInput {
 
 pub struct Options {
     pub song: Song,
-    pub mode: PlayMode,
     pub midi_input: MidiInput,
     pub backend: Backend,
     pub logging: Logging,
     pub player: Player,
-    pub records: RecordStore,
-    pub hands: Hands,
     /// Start looping `section::LOOP_BARS` bars from this (1-based) bar.
     pub loop_from: Option<u32>,
     /// Songs PgUp/PgDn switch between (may be empty).
     pub playlist: songs::Playlist,
-    /// Where the daily practice log lives.
-    pub practice_log: RecordStore,
-    /// Start with falling bars or in sight-reading mode.
-    pub view: falling::View,
     /// Open on the start screen, or go straight into the song.
     pub screen: menu::Screen,
+    /// The settings to start with: mode, hands, view, metronome, labels,
+    /// MIDI mute and chord-book progress.
+    pub settings: Settings,
+    /// Where players and their records are kept.
+    pub saves: Saves,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -209,9 +210,14 @@ fn default_plugins(backend: &Backend, logging: Logging, title: &str) -> PluginGr
 pub fn build(options: Options) -> App {
     let (low, high) = options.song.pitch_range();
     let keys = KeyRange::covering(low, high);
+    let settings = options.settings.clone();
     let mut performance = Performance::new(&options.song);
-    performance.set_hands(options.hands);
-    let mut transport = Transport::new(options.mode, options.song.tempo);
+    performance.set_hands(settings.hands);
+    let mut transport = Transport::new(settings.mode, options.song.tempo);
+    let profile = players::Profile {
+        player: options.saves.current(),
+        saves: options.saves.clone(),
+    };
     let looping = options.loop_from.map(|bar| {
         let looping = section::Looping::from_bar(options.song.tempo, bar, options.song.duration());
         transport.time = looping.region.start + transport.start;
@@ -239,7 +245,20 @@ pub fn build(options: Options) -> App {
         .insert_resource(transport)
         .insert_resource(section::SectionLoop(looping))
         .insert_resource(options.playlist)
-        .insert_resource(options.view)
+        .insert_resource(if settings.sight_reading {
+            falling::View::SightReading
+        } else {
+            falling::View::Bars
+        })
+        .insert_resource(if settings.metronome {
+            transport::Metronome::On
+        } else {
+            transport::Metronome::Off
+        })
+        .insert_resource(settings.labels)
+        .insert_resource(book::ChordBook::with_progress(
+            settings.chord_book.iter().copied(),
+        ))
         .insert_resource(ActiveSong(options.song))
         .add_message::<PlayTone>()
         .add_message::<Feedback>()
@@ -258,19 +277,34 @@ pub fn build(options: Options) -> App {
             controls::plugin,
             textures::plugin,
             effects::plugin,
-            results::plugin(options.records),
+            results::plugin(
+                profile.store(SaveFile::Bests),
+                profile.store(SaveFile::Achievements),
+            ),
             transport::plugin,
-            input::plugin(options.midi_input),
+            input::plugin(
+                options.midi_input,
+                if settings.midi_muted {
+                    input::MidiEcho::Mute
+                } else {
+                    input::MidiEcho::Play
+                },
+            ),
             piano::plugin,
             falling::plugin,
             notation::plugin,
             hud::plugin,
             section::plugin,
             songs::plugin,
-            practice::plugin(options.practice_log),
+            practice::plugin(profile.store(SaveFile::Practice)),
             heat::plugin,
         ))
-        .add_plugins((menu::plugin(options.screen), widgets::plugin));
+        .add_plugins((
+            menu::plugin(options.screen),
+            widgets::plugin,
+            book::plugin,
+            players::plugin(profile),
+        ));
     if options.player == Player::Autopilot {
         app.add_plugins(autopilot::plugin);
     }

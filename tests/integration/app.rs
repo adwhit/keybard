@@ -22,13 +22,13 @@ use keybard::app::piano::PianoKey;
 use keybard::app::results::{LastResult, ResultsCard};
 use keybard::app::transport::{PlayState, Transport};
 use keybard::app::{
-    self, ActiveSong, Backend, Judge, Keys, Logging, MidiInput, Options, PlayTone, Player,
-    RecordStore, palette,
+    self, ActiveSong, Backend, Judge, Keys, Logging, MidiInput, Options, PlayTone, Player, palette,
 };
 use keybard::layout;
 use keybard::music::{KeyColor, MidiNote};
 use keybard::performance::{Hands, NoteStatus, PlayMode, Score, Timing};
 use keybard::records::{RecordKey, Records, Submission};
+use keybard::saves::{SaveFile, Saves, Settings};
 use keybard::song::{Hand, NoteId, Seconds, Song, Tempo, parse_voice};
 
 const FRAME: Duration = Duration::from_micros(16_667);
@@ -39,24 +39,24 @@ struct Harness {
 
 impl Harness {
     fn new(song: Song, mode: PlayMode) -> Self {
-        Self::with(song, mode, Player::Human, RecordStore::Memory)
+        Self::with(song, mode, Player::Human, Saves::memory())
     }
 
-    fn with(song: Song, mode: PlayMode, player: Player, records: RecordStore) -> Self {
+    fn with(song: Song, mode: PlayMode, player: Player, saves: Saves) -> Self {
         Self::build(Options {
             song,
-            mode,
             midi_input: MidiInput::Disabled,
             backend: Backend::Headless,
             logging: Logging::Disabled,
             player,
-            records,
-            hands: Hands::Both,
             loop_from: None,
             playlist: Default::default(),
-            practice_log: RecordStore::Memory,
-            view: Default::default(),
             screen: keybard::app::menu::Screen::Song,
+            settings: Settings {
+                mode,
+                ..Settings::default()
+            },
+            saves,
         })
     }
 
@@ -105,6 +105,34 @@ impl Harness {
             window: Entity::PLACEHOLDER,
         });
         self.app.update();
+    }
+
+    /// Type `text` on the computer keyboard, a key at a time.
+    fn type_text(&mut self, text: &str) {
+        text.chars().for_each(|c| {
+            let code = match c.to_ascii_lowercase() {
+                'a' => KeyCode::KeyA,
+                'e' => KeyCode::KeyE,
+                'l' => KeyCode::KeyL,
+                'x' => KeyCode::KeyX,
+                'z' => KeyCode::KeyZ,
+                ' ' => KeyCode::Space,
+                _ => KeyCode::KeyQ,
+            };
+            [ButtonState::Pressed, ButtonState::Released]
+                .into_iter()
+                .for_each(|state| {
+                    self.world().write_message(KeyboardInput {
+                        key_code: code,
+                        logical_key: Key::Character(c.to_string().into()),
+                        state,
+                        text: (state == ButtonState::Pressed).then(|| c.to_string().into()),
+                        repeat: false,
+                        window: Entity::PLACEHOLDER,
+                    });
+                    self.app.update();
+                });
+        });
     }
 
     fn tap(&mut self, code: KeyCode) {
@@ -274,22 +302,24 @@ fn playlist_harness(mode: PlayMode) -> Harness {
     );
     Harness::build(Options {
         song: BuiltinSong::Twinkle.load().unwrap(),
-        mode,
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
         logging: Logging::Disabled,
         player: Player::Human,
-        records: RecordStore::Memory,
-        hands: Hands::Both,
         loop_from: None,
         playlist,
-        practice_log: RecordStore::Memory,
-        view: Default::default(),
         screen: keybard::app::menu::Screen::Song,
+        settings: Settings {
+            mode,
+            ..Settings::default()
+        },
+        saves: Saves::memory(),
     })
 }
 
+mod book;
 mod menu;
 mod playback;
+mod players;
 mod practice;
 mod scoring;

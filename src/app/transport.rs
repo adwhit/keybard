@@ -149,6 +149,13 @@ pub fn controls(
                 _ => transport.mode.next(),
             };
             judge.0.seek(song, transport.time);
+            // Picking a mode once the song is over starts it again in that
+            // mode (e.g. "Play it" after listening).
+            if transport.state == PlayState::Finished {
+                judge.0.reset(song);
+                transport.time = transport.start;
+                transport.state = PlayState::Playing;
+            }
             info!(mode = transport.mode.label(), "changed play mode");
         }
         Control::ToggleMetronome => {

@@ -19,4 +19,6 @@ pub enum Error {
     UnsupportedTiming,
     #[error("song contains no notes")]
     EmptySong,
+    #[error("`{0}` can't be a player name (1-20 letters, digits, spaces, - _ ')")]
+    InvalidPlayerName(String),
 }

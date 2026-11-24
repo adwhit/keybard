@@ -6,7 +6,7 @@ use bevy::sprite::Anchor;
 
 use super::effects::popup;
 use super::falling::View;
-use super::input::MidiStatus;
+use super::input::{MidiEcho, MidiStatus};
 use super::practice::Practice;
 use super::results::Bests;
 use super::section::SectionLoop;
@@ -172,6 +172,7 @@ fn update_info(
     practice: Res<Practice>,
     metronome: Res<Metronome>,
     midi: Res<MidiStatus>,
+    echo: Res<MidiEcho>,
     view: Res<View>,
 ) {
     let state = match transport.state {
@@ -203,7 +204,10 @@ fn update_info(
         "\n{streak} | {minutes} min today | {midi}",
         streak = practice.streak_label(),
         minutes = practice.minutes_today(),
-        midi = midi.label()
+        midi = match *echo {
+            MidiEcho::Play => midi.label(),
+            MidiEcho::Mute => format!("{} | MIDI notes muted (F7)", midi.label()),
+        }
     ));
     if let Some(looping) = &section.0 {
         let tempo = song.0.tempo;

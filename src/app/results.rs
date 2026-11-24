@@ -10,7 +10,7 @@ use super::transport::{PlayState, Transport};
 use super::widgets::button;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::achievements::{Achievement, Achievements, RunSummary};
-use crate::performance::{Insights, Score, Timing};
+use crate::performance::{Insights, PlayMode, Score, Timing};
 use crate::practice::weakest_section;
 use crate::records::{RecordKey, Records, Submission};
 
@@ -76,12 +76,18 @@ pub struct BarCell(pub usize);
 #[derive(Component)]
 pub struct ResultsCard;
 
+/// Shown when a song finishes in Listen mode (nothing to score), so it
+/// doesn't just stop: what to do next.
+#[derive(Component)]
+pub struct EndCard;
+
 /// The F5 overlay listing every achievement.
 #[derive(Component)]
 pub struct AchievementGallery;
 
-pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
-    move |app: &mut App| {
+impl Bests {
+    /// Load the bests kept in `store`.
+    pub fn open(store: RecordStore) -> Self {
         let records = match &store {
             RecordStore::File(path) => Records::load(path).unwrap_or_else(|err| {
                 warn!(%err, "could not load personal bests; starting fresh");
@@ -89,34 +95,39 @@ pub fn plugin(store: RecordStore) -> impl Fn(&mut App) {
             }),
             RecordStore::Memory => Records::default(),
         };
-        // Achievements live next to the bests.
-        let achievement_store = match &store {
-            RecordStore::File(path) => RecordStore::File(path.with_file_name("achievements.txt")),
-            RecordStore::Memory => RecordStore::Memory,
-        };
-        let achievements = match &achievement_store {
+        Self { store, records }
+    }
+}
+
+impl Unlocked {
+    /// Load the achievements kept in `store`.
+    pub fn open(store: RecordStore) -> Self {
+        let achievements = match &store {
             RecordStore::File(path) => Achievements::load(path).unwrap_or_else(|err| {
                 warn!(%err, "could not load achievements; starting fresh");
                 Achievements::default()
             }),
             RecordStore::Memory => Achievements::default(),
         };
-        app.insert_resource(Unlocked {
-            store: achievement_store,
+        Self {
+            store,
             achievements,
-        })
-        .insert_resource(Bests {
-            store: store.clone(),
-            records,
-        })
-        .add_systems(Startup, spawn_gallery)
-        .add_systems(Update, toggle_gallery.in_set(Phase::Input))
-        .add_systems(
-            Update,
-            (record_finish, show_card, refresh_gallery)
-                .chain()
-                .in_set(Phase::Present),
-        );
+        }
+    }
+}
+
+pub fn plugin(bests: RecordStore, achievements: RecordStore) -> impl Fn(&mut App) {
+    move |app: &mut App| {
+        app.insert_resource(Unlocked::open(achievements.clone()))
+            .insert_resource(Bests::open(bests.clone()))
+            .add_systems(Startup, spawn_gallery)
+            .add_systems(Update, toggle_gallery.in_set(Phase::Input))
+            .add_systems(
+                Update,
+                (record_finish, show_card, show_end_card, refresh_gallery)
+                    .chain()
+                    .in_set(Phase::Present),
+            );
     }
 }
 
@@ -276,6 +287,65 @@ fn show_card(
             &unlocked,
             playlist.entries().len() > 1,
         );
+    }
+}
+
+fn show_end_card(
+    mut commands: Commands,
+    cards: Query<Entity, With<EndCard>>,
+    transport: Res<Transport>,
+    song: Res<ActiveSong>,
+    playlist: Res<Playlist>,
+) {
+    let wanted = transport.state == PlayState::Finished && !transport.mode.is_scored();
+    match (wanted, cards.is_empty()) {
+        (true, true) => {
+            commands
+                .spawn((
+                    SongScoped,
+                    EndCard,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(25.0),
+                        right: Val::Percent(25.0),
+                        top: Val::Percent(30.0),
+                        padding: UiRect::all(Val::Px(20.0)),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        row_gap: Val::Px(8.0),
+                        border: UiRect::all(Val::Px(2.0)),
+                        ..default()
+                    },
+                    BackgroundColor(palette::BACKGROUND),
+                    BorderColor::all(palette::timing(Timing::Great)),
+                    GlobalZIndex(10),
+                ))
+                .with_children(|card| {
+                    card.spawn(text("THE END", 40.0, palette::timing(Timing::Great)));
+                    card.spawn(text(song.0.title.clone(), 18.0, palette::HUD_TEXT));
+                    card.spawn(text(
+                        "Your turn? Play it and see how you score.",
+                        14.0,
+                        palette::HUD_DIM,
+                    ));
+                    card.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(10.0),
+                        margin: UiRect::top(Val::Px(8.0)),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        row.spawn(button(Control::SetMode(PlayMode::Play), "Play it", 16.0));
+                        row.spawn(button(Control::TogglePlay, "Listen again", 16.0));
+                        if playlist.entries().len() > 1 {
+                            row.spawn(button(Control::NextSong, "Next song", 16.0));
+                        }
+                        row.spawn(button(Control::OpenMenu, "Start screen", 16.0));
+                    });
+                });
+        }
+        (false, false) => cards.iter().for_each(|e| commands.entity(e).despawn()),
+        _ => {}
     }
 }
 

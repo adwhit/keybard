@@ -1,7 +1,7 @@
 //! Personal bests per song and play mode, persisted as a small TSV file.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use tracing::{debug, warn};
 
@@ -128,11 +128,6 @@ pub fn chase(points: u32, best: Option<Best>) -> Chase {
             to_go: best.points - points,
         },
     }
-}
-
-/// Where bests live by default: the platform's user data directory.
-pub fn default_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "keybard").map(|dirs| dirs.data_dir().join("bests.tsv"))
 }
 
 impl Records {

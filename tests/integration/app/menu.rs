@@ -14,17 +14,17 @@ const SONGS: [BuiltinSong; 3] = [
 fn on_start_screen() -> Harness {
     Harness::build(Options {
         song: SONGS[0].load().unwrap(),
-        mode: PlayMode::Listen,
+        settings: Settings {
+            mode: PlayMode::Listen,
+            ..Settings::default()
+        },
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
         logging: Logging::Disabled,
         player: Player::Human,
-        records: RecordStore::Memory,
-        hands: Hands::Both,
+        saves: Saves::memory(),
         loop_from: None,
         playlist: Playlist::new(SONGS.iter().map(|b| SongSource::Builtin(*b)).collect(), 0),
-        practice_log: RecordStore::Memory,
-        view: Default::default(),
         screen: Screen::Menu,
     })
 }
@@ -185,6 +185,7 @@ fn every_command_has_a_stable_id_for_the_menu_bar() {
         Control::SelectSong(3),
         Control::SetMode(PlayMode::Wait),
         Control::SetHands(Hands::Left),
+        Control::ToggleMidiEcho,
     ];
     all.into_iter()
         .for_each(|c| assert_eq!(Control::from_id(&c.id()), Some(c), "{}", c.id()));
@@ -283,4 +284,88 @@ fn a_held_chord_presses_once() {
     pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Up));
     play_chord(&mut h, &pitches);
     assert_eq!(*h.world().resource::<View>(), View::Bars);
+}
+
+#[test]
+fn the_start_screen_can_mute_the_midi_keyboard() {
+    use keybard::app::input::MidiEcho;
+    let mut h = on_start_screen();
+    h.click(Control::ToggleMidiEcho);
+    assert_eq!(*h.world().resource::<MidiEcho>(), MidiEcho::Mute);
+}
+
+#[test]
+fn listening_to_the_end_offers_what_next() {
+    use keybard::app::results::EndCard;
+    let mut h = on_start_screen();
+    h.click(Control::SetMode(PlayMode::Listen));
+    h.click(Control::StartSong);
+    while h.transport().state != PlayState::Finished {
+        h.app.update();
+    }
+    h.frames(2);
+    assert_eq!(
+        h.count::<EndCard>(),
+        1,
+        "the song ends on a card, not a stall"
+    );
+    [
+        Control::TogglePlay,
+        Control::SetMode(PlayMode::Play),
+        Control::NextSong,
+        Control::OpenMenu,
+    ]
+    .into_iter()
+    .for_each(|c| assert!(h.has_button(c), "{c:?}"));
+
+    // "Play it" starts the same song over, now for you to play.
+    h.click(Control::SetMode(PlayMode::Play));
+    assert_eq!(h.transport().mode, PlayMode::Play);
+    assert_eq!(h.transport().state, PlayState::Playing);
+    assert!(h.time().0 - h.transport().start.0 < 0.05, "from the top");
+    h.frames(2);
+    assert_eq!(h.count::<EndCard>(), 0);
+}
+
+#[test]
+fn the_start_screen_leaves_the_piano_in_view() {
+    let mut h = on_start_screen();
+    let mut q = h.world().query_filtered::<&Node, With<StartScreen>>();
+    let node = q.single(h.app.world()).unwrap();
+    let covered = 1.0 - layout::WHITE_KEY_HEIGHT / layout::CANVAS_HEIGHT;
+    assert_eq!(
+        node.height,
+        Val::Percent(covered * 100.0),
+        "stops above the keys"
+    );
+}
+
+#[test]
+fn the_start_screen_names_what_you_play() {
+    let mut h = on_start_screen();
+    h.frames(2);
+    let readout = |h: &mut Harness| {
+        h.ui_texts()
+            .into_iter()
+            .find(|t| t.starts_with("You're playing"))
+    };
+    assert_eq!(readout(&mut h), None, "nothing held, nothing shown");
+    // Two notes: named one by one.
+    h.midi(60, KeyEdge::Down);
+    h.midi(64, KeyEdge::Down);
+    h.frames(1);
+    assert_eq!(readout(&mut h).as_deref(), Some("You're playing  C4 E4"));
+    // A chord no button uses: named, and said so.
+    [60, 64].iter().for_each(|p| h.midi(*p, KeyEdge::Up));
+    // (Csus4: no button's triad hides inside it, so building it note by
+    // note presses nothing on the way.)
+    [60, 65, 67].iter().for_each(|p| h.midi(*p, KeyEdge::Down));
+    h.frames(1);
+    assert_eq!(
+        readout(&mut h).as_deref(),
+        Some("You're playing  Csus4  (no button)")
+    );
+    [60, 65, 67].iter().for_each(|p| h.midi(*p, KeyEdge::Up));
+    h.frames(1);
+    assert_eq!(readout(&mut h), None);
 }

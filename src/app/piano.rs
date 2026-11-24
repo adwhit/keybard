@@ -21,6 +21,10 @@ use crate::song::{Hand, Seconds};
 #[derive(Component, Debug, Clone, Copy)]
 pub struct KeyFinger;
 
+/// Keys to light as a guide outside the song (e.g. a chord-book page).
+#[derive(Resource, Debug, Default, Clone, PartialEq)]
+pub struct GuideKeys(pub Vec<MidiNote>);
+
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PianoKey {
     pub note: MidiNote,
@@ -32,7 +36,8 @@ const BLACK_Z: f32 = 11.0;
 const KEY_GAP: f32 = 1.0;
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Startup, spawn_key_bed)
+    app.init_resource::<GuideKeys>()
+        .add_systems(Startup, spawn_key_bed)
         .add_systems(Update, spawn_keys.in_set(SongLoad))
         .add_systems(Update, show_key_fingers.in_set(Phase::Present))
         .add_systems(Startup, spawn_hit_line)
@@ -156,6 +161,7 @@ fn color_keys(
     song: Res<ActiveSong>,
     judge: Res<Judge>,
     view: Res<View>,
+    guide: Res<GuideKeys>,
 ) {
     let now = transport.time;
     let upcoming: HashMap<MidiNote, Hand> = song
@@ -187,6 +193,8 @@ fn color_keys(
                 KeyLight::Cue(_) | KeyLight::Upcoming(_) if *view == View::SightReading => {
                     KeyLight::Idle
                 }
+                // Guide keys show where to play, unless already pressed.
+                KeyLight::Idle if guide.0.contains(&key.note) => KeyLight::Upcoming(Hand::Right),
                 light => light,
             };
             sprite.color = light.color(key.color);

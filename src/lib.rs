@@ -20,6 +20,7 @@ pub mod performance;
 pub mod practice;
 pub mod records;
 pub mod render;
+pub mod saves;
 pub mod song;
 pub mod streak;
 pub mod synth;

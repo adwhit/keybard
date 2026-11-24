@@ -3,15 +3,15 @@ use std::process::ExitCode;
 
 use bevy::app::AppExit;
 use clap::{Parser, ValueEnum};
-use keybard::app::falling::View;
 use keybard::app::menu::Screen;
 use keybard::app::songs::{Playlist, SongSource};
-use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
+use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
 use keybard::midi_port::{self, PortChoice};
 use keybard::performance::{Hands, PlayMode};
+use keybard::saves::{PlayerName, Saves, Settings};
 use keybard::song::Seconds;
-use keybard::{midi_file, records, render};
+use keybard::{midi_file, render};
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum HandsArg {
@@ -32,9 +32,9 @@ impl From<HandsArg> for Hands {
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum Mode {
+    Play,
     Listen,
     Wait,
-    Play,
 }
 
 impl From<Mode> for PlayMode {
@@ -57,12 +57,13 @@ struct Cli {
     /// screen, as do a MIDI file, --mode, --loop and --autopilot.
     #[arg(long, value_enum)]
     song: Option<BuiltinSong>,
-    /// Play mode (default listen; Tab cycles in-app).
+    /// Play mode (default play; Tab cycles in-app).
     #[arg(long, value_enum)]
     mode: Option<Mode>,
     /// Which hands you play; the computer plays the rest (F2 cycles in-app).
-    #[arg(long, value_enum, default_value_t = HandsArg::Both)]
-    hands: HandsArg,
+    /// Defaults to the player's saved choice.
+    #[arg(long, value_enum)]
+    hands: Option<HandsArg>,
     /// Start looping 4 bars from this bar number (F3 toggles in-app).
     #[arg(long = "loop", value_name = "BAR")]
     loop_from: Option<u32>,
@@ -78,6 +79,10 @@ struct Cli {
     /// Open on the start screen even when a song or mode is given.
     #[arg(long)]
     start_screen: bool,
+    /// Don't sound notes played on the MIDI keyboard (it has its own
+    /// sound); everything the computer plays still sounds. F7 toggles.
+    #[arg(long)]
+    mute_midi: bool,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -94,10 +99,13 @@ struct Cli {
     /// Let the built-in autopilot play (Wait/Play modes) — handy as a demo.
     #[arg(long)]
     autopilot: bool,
-    /// Where to keep personal bests. Defaults to the user data directory in
-    /// windowed mode; headless and snapshot runs never touch it.
-    #[arg(long, value_name = "FILE")]
-    records: Option<PathBuf>,
+    /// Where players and their saves live. Defaults to the user data
+    /// directory in windowed mode; headless and snapshot runs keep nothing.
+    #[arg(long, value_name = "DIR")]
+    data_dir: Option<PathBuf>,
+    /// Play as this player (created if new) instead of whoever played last.
+    #[arg(long, value_name = "NAME")]
+    player: Option<String>,
     /// Render the song through the synth into a WAV file and exit (no window).
     #[arg(long, value_name = "FILE", conflicts_with_all = ["snapshot", "headless"])]
     render_wav: Option<PathBuf>,
@@ -116,7 +124,46 @@ fn main() -> ExitCode {
         ports.iter().for_each(|name| println!("{name}"));
         return ExitCode::SUCCESS;
     }
-    let builtin = cli.song.unwrap_or(BuiltinSong::OdeToJoy);
+    let transient = cli.headless || cli.snapshot.is_some();
+    let saves = match (&cli.data_dir, transient) {
+        (Some(dir), _) => Saves::at(dir),
+        (None, true) => Saves::memory(),
+        (None, false) => Saves::default_dir().map_or_else(Saves::memory, Saves::at),
+    };
+    if let Some(name) = &cli.player {
+        match PlayerName::new(name) {
+            Ok(name) => {
+                if let Err(err) = saves.create(&name) {
+                    eprintln!("keybard: {err}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            Err(err) => {
+                eprintln!("keybard: {err}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    // The player's saved settings, with anything given here taking over.
+    let saved = saves.load_settings(&saves.current());
+    let settings = Settings {
+        mode: cli.mode.map_or(saved.mode, Into::into),
+        hands: cli.hands.map_or(saved.hands, Into::into),
+        sight_reading: cli.sight_reading || saved.sight_reading,
+        midi_muted: cli.mute_midi || saved.midi_muted,
+        ..saved
+    };
+    let builtin = cli
+        .song
+        .or_else(|| {
+            // Otherwise the song this player last chose.
+            let title = settings.song.as_deref()?;
+            BuiltinSong::value_variants()
+                .iter()
+                .copied()
+                .find(|b| b.load().is_ok_and(|s| s.title == title))
+        })
+        .unwrap_or(BuiltinSong::OdeToJoy);
     let song = match &cli.midi {
         Some(path) => midi_file::load(path),
         None => builtin.load(),
@@ -156,7 +203,6 @@ fn main() -> ExitCode {
             }
         };
     }
-    let transient = cli.headless || cli.snapshot.is_some();
     // Asking for something specific goes straight to it; otherwise start on
     // the start screen.
     let direct = transient
@@ -165,18 +211,8 @@ fn main() -> ExitCode {
         || cli.song.is_some()
         || cli.mode.is_some()
         || cli.loop_from.is_some();
-    let practice_log = match (transient, records::default_path()) {
-        (false, Some(bests)) => RecordStore::File(bests.with_file_name("practice.tsv")),
-        _ => RecordStore::Memory,
-    };
-    let records = match (&cli.records, cli.headless || cli.snapshot.is_some()) {
-        (Some(path), _) => RecordStore::File(path.clone()),
-        (None, true) => RecordStore::Memory,
-        (None, false) => records::default_path().map_or(RecordStore::Memory, RecordStore::File),
-    };
     let exit = app::run(Options {
         song,
-        mode: cli.mode.unwrap_or(Mode::Listen).into(),
         midi_input: match (cli.no_midi, &cli.midi_port) {
             (true, _) => MidiInput::Disabled,
             (false, Some(name)) => MidiInput::Enabled(PortChoice::Named(name.clone())),
@@ -197,16 +233,10 @@ fn main() -> ExitCode {
         } else {
             Player::Human
         },
-        records,
-        hands: cli.hands.into(),
         loop_from: cli.loop_from,
         playlist,
-        practice_log,
-        view: if cli.sight_reading {
-            View::SightReading
-        } else {
-            View::Bars
-        },
+        settings,
+        saves,
         screen: if direct && !cli.start_screen {
             Screen::Song
         } else {

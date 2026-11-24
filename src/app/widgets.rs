@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 use super::controls::{Control, ControlButton};
 use super::falling::View;
+use super::input::MidiEcho;
 use super::songs::Playlist;
 use super::transport::{Metronome, Transport};
 use super::{Judge, Phase, palette};
@@ -93,6 +94,7 @@ struct Settings {
     song: usize,
     sight_reading: bool,
     metronome: bool,
+    midi_muted: bool,
 }
 
 impl Settings {
@@ -103,6 +105,7 @@ impl Settings {
             Control::SelectSong(i) => i == self.song,
             Control::ToggleSightReading => self.sight_reading,
             Control::ToggleMetronome => self.metronome,
+            Control::ToggleMidiEcho => self.midi_muted,
             // The main action always stands out.
             Control::StartSong => true,
             _ => false,
@@ -127,6 +130,7 @@ fn style_buttons(
     playlist: Res<Playlist>,
     view: Res<View>,
     metronome: Res<Metronome>,
+    echo: Res<MidiEcho>,
 ) {
     let settings = Settings {
         mode: transport.mode,
@@ -134,6 +138,7 @@ fn style_buttons(
         song: playlist.current(),
         sight_reading: *view == View::SightReading,
         metronome: *metronome == Metronome::On,
+        midi_muted: *echo == MidiEcho::Mute,
     };
     buttons
         .iter_mut()

@@ -56,14 +56,8 @@ pub enum View {
     SightReading,
 }
 
-/// What the bars are labelled with. F1 cycles through these.
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BarLabels {
-    Both,
-    Fingers,
-    Names,
-    Off,
-}
+/// What the bars are labelled with (F1 cycles); saved with the settings.
+pub use crate::saves::BarLabels;
 
 impl BarLabels {
     fn next(self) -> Self {
@@ -129,7 +123,7 @@ const BLACK_BAR_Z: f32 = 1.5;
 const PANEL_Z: f32 = 5.0;
 
 pub fn plugin(app: &mut App) {
-    app.insert_resource(BarLabels::Both)
+    app.init_resource::<BarLabels>()
         .init_resource::<View>()
         .add_systems(Update, toggle_view.in_set(Phase::Input))
         .add_systems(Startup, spawn_backdrop)

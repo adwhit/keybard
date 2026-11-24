@@ -594,3 +594,16 @@ mod focus {
         assert!(perf.is_players(&song, NoteId(3)));
     }
 }
+
+#[test]
+fn play_comes_first_and_is_the_default() {
+    assert_eq!(PlayMode::default(), PlayMode::Play);
+    assert_eq!(
+        PlayMode::ALL,
+        [PlayMode::Play, PlayMode::Listen, PlayMode::Wait]
+    );
+    // Tab cycles in the same order.
+    assert_eq!(PlayMode::Play.next(), PlayMode::Listen);
+    assert_eq!(PlayMode::Listen.next(), PlayMode::Wait);
+    assert_eq!(PlayMode::Wait.next(), PlayMode::Play);
+}
