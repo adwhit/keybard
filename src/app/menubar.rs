@@ -24,14 +24,15 @@ struct MenuBar {
     checks: Vec<(Control, CheckMenuItem)>,
 }
 
+/// Marks the menus as installed. A plain resource, because run conditions
+/// can be evaluated on any thread, unlike the menus themselves.
+#[derive(Resource)]
+struct Installed;
+
 pub fn plugin(app: &mut App) {
-    app.add_systems(Update, install.run_if(not_installed))
+    app.add_systems(Update, install.run_if(not(resource_exists::<Installed>)))
         .add_systems(Update, forward.in_set(ReadControls))
         .add_systems(Update, sync_checks.in_set(Phase::Present));
-}
-
-fn not_installed(bar: Option<NonSend<MenuBar>>) -> bool {
-    bar.is_none()
 }
 
 fn item(control: Control, text: &str) -> MenuItem {
@@ -59,6 +60,8 @@ fn submenu(title: &str, items: &[&dyn IsMenuItem]) -> Submenu {
 /// Build and install the menus (an exclusive system, so on the main thread,
 /// once the window's event loop is running).
 fn install(world: &mut World) {
+    // Only ever try once, even if building the menus fails.
+    world.insert_resource(Installed);
     let titles = world.resource::<Titles>().0.clone();
     let mut checks = Vec::new();
     let separator = PredefinedMenuItem::separator;
