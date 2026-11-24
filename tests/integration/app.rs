@@ -3,10 +3,15 @@
 
 use std::time::Duration;
 
+use bevy::camera::NormalizedRenderTarget;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput, NativeKey};
+use bevy::picking::backend::HitData;
+use bevy::picking::events::{Pointer, PointerClick};
+use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
+use keybard::app::controls::{Control, ControlButton};
 use keybard::app::effects::{KeyFlash, Particle, Popup};
 use keybard::app::falling::BarLabel;
 use keybard::app::falling::FallingBar;
@@ -51,6 +56,7 @@ impl Harness {
             playlist: Default::default(),
             practice_log: RecordStore::Memory,
             view: Default::default(),
+            screen: keybard::app::menu::Screen::Song,
         })
     }
 
@@ -118,6 +124,72 @@ impl Harness {
             velocity,
         });
         self.app.update();
+    }
+
+    /// A pointer event as the picking backend would report it.
+    fn pointer() -> (Pointer, HitData) {
+        let location = Location {
+            target: NormalizedRenderTarget::None {
+                width: 1280,
+                height: 800,
+            },
+            position: Vec2::ZERO,
+        };
+        (
+            Pointer::new(PointerId::Mouse, location),
+            HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        )
+    }
+
+    /// The visible button that sends `control`.
+    fn button(&mut self, control: Control) -> Entity {
+        let mut q = self
+            .world()
+            .query::<(Entity, &ControlButton, &InheritedVisibility)>();
+        let found: Vec<Entity> = q
+            .iter(self.app.world())
+            .filter(|(_, b, v)| b.0 == control && v.get())
+            .map(|(e, ..)| e)
+            .collect();
+        assert_eq!(found.len(), 1, "one visible {control:?} button");
+        found[0]
+    }
+
+    fn has_button(&mut self, control: Control) -> bool {
+        let mut q = self
+            .world()
+            .query::<(&ControlButton, &InheritedVisibility)>();
+        q.iter(self.app.world())
+            .any(|(b, v)| b.0 == control && v.get())
+    }
+
+    /// Click the visible button for `control` (on its label, as a person
+    /// would), then run a frame.
+    fn click(&mut self, control: Control) {
+        let button = self.button(control);
+        let target = self
+            .world()
+            .get::<Children>(button)
+            .and_then(|c| c.first().copied())
+            .unwrap_or(button);
+        let (pointer, hit) = Self::pointer();
+        self.world().trigger(PointerClick {
+            entity: target,
+            pointer,
+            button: PointerButton::Primary,
+            hit,
+            duration: Duration::from_millis(80),
+            count: 1,
+        });
+        self.app.update();
+    }
+
+    fn ui_texts(&mut self) -> Vec<String> {
+        let mut q = self.world().query::<(&Text, &InheritedVisibility)>();
+        q.iter(self.app.world())
+            .filter(|(_, v)| v.get())
+            .map(|(t, _)| t.0.clone())
+            .collect()
     }
 
     fn tones(&mut self) -> Vec<PlayTone> {
@@ -213,9 +285,11 @@ fn playlist_harness(mode: PlayMode) -> Harness {
         playlist,
         practice_log: RecordStore::Memory,
         view: Default::default(),
+        screen: keybard::app::menu::Screen::Song,
     })
 }
 
+mod menu;
 mod playback;
 mod practice;
 mod scoring;

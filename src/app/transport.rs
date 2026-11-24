@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use tracing::{debug, info};
 
 use super::audio::PlayTone;
+use super::controls::Control;
 use super::{ActiveSong, Feedback, Judge, Phase};
 use crate::dynamics::Velocity;
 use crate::layout;
@@ -92,85 +93,82 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, (controls, advance).chain().in_set(Phase::Simulate));
 }
 
-fn controls(
-    keys: Res<ButtonInput<KeyCode>>,
+pub fn controls(
+    mut controls: MessageReader<Control>,
     mut transport: ResMut<Transport>,
     song: Res<ActiveSong>,
     mut judge: ResMut<Judge>,
-    mut exit: MessageWriter<AppExit>,
     mut metronome: ResMut<Metronome>,
 ) {
     let song = &song.0;
-    if keys.just_pressed(KeyCode::Escape) {
-        exit.write(AppExit::Success);
-    }
-    if keys.just_pressed(KeyCode::Space) {
-        transport.state = match transport.state {
-            PlayState::Playing => PlayState::Paused,
-            PlayState::Paused => PlayState::Playing,
-            PlayState::Finished => {
-                judge.0.reset(song);
-                transport.time = transport.start;
-                PlayState::Playing
-            }
-        };
-        info!(state = ?transport.state, "toggled playback");
-    }
-    if keys.just_pressed(KeyCode::Backspace) {
-        judge.0.reset(song);
-        transport.time = transport.start;
-        transport.state = PlayState::Playing;
-        info!("restarted song");
-    }
-    let seek = [
-        (KeyCode::ArrowLeft, -SEEK_STEP.0),
-        (KeyCode::ArrowRight, SEEK_STEP.0),
-    ]
-    .into_iter()
-    .filter(|(k, _)| keys.just_pressed(*k))
-    .map(|(_, d)| d)
-    .sum::<f32>();
-    if seek != 0.0 {
-        let target = (transport.time.0 + seek).clamp(transport.start.0, song.duration().0);
-        transport.time = Seconds(target);
-        judge.0.seek(song, transport.time);
-        if transport.state == PlayState::Finished {
-            transport.state = PlayState::Paused;
+    controls.read().for_each(|control| match *control {
+        Control::TogglePlay => {
+            transport.state = match transport.state {
+                PlayState::Playing => PlayState::Paused,
+                PlayState::Paused => PlayState::Playing,
+                PlayState::Finished => {
+                    judge.0.reset(song);
+                    transport.time = transport.start;
+                    PlayState::Playing
+                }
+            };
+            info!(state = ?transport.state, "toggled playback");
         }
-        info!(time = target, "seeked");
-    }
-    let speed_steps = [
-        (KeyCode::BracketLeft, -1.0),
-        (KeyCode::BracketRight, 1.0),
-        (KeyCode::ArrowDown, -1.0),
-        (KeyCode::ArrowUp, 1.0),
-    ]
-    .into_iter()
-    .filter(|(k, _)| keys.just_pressed(*k))
-    .map(|(_, d)| d)
-    .sum::<f32>();
-    if speed_steps != 0.0 {
-        transport.speed = transport.speed.nudge(speed_steps);
-        info!(speed = transport.speed.get(), "changed speed");
-    }
-    if keys.just_pressed(KeyCode::Tab) {
-        transport.mode = transport.mode.next();
-        judge.0.seek(song, transport.time);
-        info!(mode = transport.mode.label(), "changed play mode");
-    }
-    if keys.just_pressed(KeyCode::F4) {
-        *metronome = match *metronome {
-            Metronome::Off => Metronome::On,
-            Metronome::On => Metronome::Off,
-        };
-        info!(metronome = ?*metronome, "toggled metronome");
-    }
-    if keys.just_pressed(KeyCode::F2) {
-        let hands = judge.0.hands().next();
-        judge.0.set_hands(hands);
-        judge.0.seek(song, transport.time);
-        info!(hands = hands.label(), "changed practised hands");
-    }
+        Control::Restart => {
+            judge.0.reset(song);
+            transport.time = transport.start;
+            transport.state = PlayState::Playing;
+            info!("restarted song");
+        }
+        Control::SeekBack | Control::SeekForward => {
+            let step = if *control == Control::SeekBack {
+                -SEEK_STEP.0
+            } else {
+                SEEK_STEP.0
+            };
+            let target = (transport.time.0 + step).clamp(transport.start.0, song.duration().0);
+            transport.time = Seconds(target);
+            judge.0.seek(song, transport.time);
+            if transport.state == PlayState::Finished {
+                transport.state = PlayState::Paused;
+            }
+            info!(time = target, "seeked");
+        }
+        Control::Slower | Control::Faster => {
+            let steps = if *control == Control::Slower {
+                -1.0
+            } else {
+                1.0
+            };
+            transport.speed = transport.speed.nudge(steps);
+            info!(speed = transport.speed.get(), "changed speed");
+        }
+        Control::CycleMode | Control::SetMode(_) => {
+            transport.mode = match *control {
+                Control::SetMode(mode) => mode,
+                _ => transport.mode.next(),
+            };
+            judge.0.seek(song, transport.time);
+            info!(mode = transport.mode.label(), "changed play mode");
+        }
+        Control::ToggleMetronome => {
+            *metronome = match *metronome {
+                Metronome::Off => Metronome::On,
+                Metronome::On => Metronome::Off,
+            };
+            info!(metronome = ?*metronome, "toggled metronome");
+        }
+        Control::CycleHands | Control::SetHands(_) => {
+            let hands = match *control {
+                Control::SetHands(hands) => hands,
+                _ => judge.0.hands().next(),
+            };
+            judge.0.set_hands(hands);
+            judge.0.seek(song, transport.time);
+            info!(hands = hands.label(), "changed practised hands");
+        }
+        _ => {}
+    });
 }
 
 #[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]

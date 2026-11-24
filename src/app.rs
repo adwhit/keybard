@@ -9,11 +9,15 @@
 
 mod audio;
 mod autopilot;
+pub mod controls;
 pub mod effects;
 pub mod falling;
 pub mod heat;
 pub mod hud;
 pub mod input;
+pub mod menu;
+#[cfg(target_os = "macos")]
+mod menubar;
 pub mod notation;
 pub mod palette;
 pub mod piano;
@@ -24,6 +28,7 @@ mod snapshot;
 pub mod songs;
 mod textures;
 pub mod transport;
+mod widgets;
 
 use std::time::Duration;
 
@@ -148,6 +153,8 @@ pub struct Options {
     pub practice_log: RecordStore,
     /// Start with falling bars or in sight-reading mode.
     pub view: falling::View,
+    /// Open on the start screen, or go straight into the song.
+    pub screen: menu::Screen,
 }
 
 const HEADLESS_FRAME: Duration = Duration::from_micros(16_667);
@@ -238,10 +245,17 @@ pub fn build(options: Options) -> App {
         .add_message::<Feedback>()
         .configure_sets(
             Update,
-            (Phase::Input, Phase::Simulate, Phase::Present).chain(),
+            (
+                controls::ReadControls,
+                Phase::Input,
+                Phase::Simulate,
+                Phase::Present,
+            )
+                .chain(),
         )
         .add_systems(Startup, spawn_camera)
         .add_plugins((
+            controls::plugin,
             textures::plugin,
             effects::plugin,
             results::plugin(options.records),
@@ -255,13 +269,16 @@ pub fn build(options: Options) -> App {
             songs::plugin,
             practice::plugin(options.practice_log),
             heat::plugin,
-        ));
+        ))
+        .add_plugins((menu::plugin(options.screen), widgets::plugin));
     if options.player == Player::Autopilot {
         app.add_plugins(autopilot::plugin);
     }
     match options.backend {
         Backend::Windowed => {
             app.add_plugins(audio::plugin);
+            #[cfg(target_os = "macos")]
+            app.add_plugins(menubar::plugin);
         }
         Backend::Headless => {
             app.add_systems(Update, exit_when_finished.after(Phase::Present));

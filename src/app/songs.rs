@@ -1,5 +1,4 @@
-//! Switching songs at runtime (PgUp/PgDn) and the song list shown before the
-//! music starts.
+//! Switching songs at runtime (PgUp/PgDn, the start screen or the menu bar).
 //!
 //! Everything that depends on the song is tagged [`SongScoped`] and rebuilt
 //! by systems in [`SongLoad`] whenever [`ActiveSong`] changes, including the
@@ -10,18 +9,16 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use tracing::{info, warn};
 
-use super::practice::Practice;
-use super::results::{Bests, LastResult};
+use super::controls::{Control, ReadControls};
+use super::results::LastResult;
 use super::section::SectionLoop;
-use super::transport::{PlayState, Transport};
-use super::{ActiveSong, Judge, Keys, Phase, palette};
+use super::transport::Transport;
+use super::{ActiveSong, Judge, Keys, Phase};
 use crate::builtin::BuiltinSong;
-use crate::challenge::for_day;
 use crate::error::Error;
 use crate::layout::KeyRange;
 use crate::midi_file;
-use crate::performance::{Grade, Performance};
-use crate::records::RecordKey;
+use crate::performance::Performance;
 use crate::song::Song;
 
 /// Where a song comes from.
@@ -72,10 +69,6 @@ impl Playlist {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct SongScoped;
 
-/// The song list overlay.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct SongList;
-
 /// Systems that (re)build song-dependent entities. They run when
 /// [`ActiveSong`] changes, before input is read, after [`SongClear`].
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -85,9 +78,9 @@ pub struct SongLoad;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 struct SongClear;
 
-/// Cached titles, so the list doesn't reload every song each frame.
+/// Cached titles, so lists don't reload every song each frame.
 #[derive(Resource, Debug, Default)]
-struct Titles(Vec<String>);
+pub struct Titles(pub Vec<String>);
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Playlist>()
@@ -99,12 +92,11 @@ pub fn plugin(app: &mut App) {
                 .before(Phase::Input)
                 .run_if(resource_changed::<ActiveSong>),
         )
-        .add_systems(Startup, (spawn_list, cache_titles))
+        .add_systems(Startup, cache_titles)
         .add_systems(Update, despawn_previous.in_set(SongClear))
         // Switch first, so this very frame clears, rebuilds and draws the
         // new song consistently.
-        .add_systems(Update, switch.before(SongClear))
-        .add_systems(Update, show_list.in_set(Phase::Present));
+        .add_systems(Update, switch.after(ReadControls).before(SongClear));
 }
 
 fn despawn_previous(mut commands: Commands, scoped: Query<Entity, With<SongScoped>>) {
@@ -131,7 +123,7 @@ fn cache_titles(playlist: Res<Playlist>, mut titles: ResMut<Titles>) {
 )]
 fn switch(
     mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
+    mut controls: MessageReader<Control>,
     mut playlist: ResMut<Playlist>,
     mut song: ResMut<ActiveSong>,
     mut range: ResMut<Keys>,
@@ -139,14 +131,22 @@ fn switch(
     mut transport: ResMut<Transport>,
     mut section: ResMut<SectionLoop>,
 ) {
-    let steps = [(KeyCode::PageUp, -1), (KeyCode::PageDown, 1)]
-        .into_iter()
-        .filter(|(k, _)| keys.just_pressed(*k))
-        .map(|(_, d)| d)
-        .sum::<isize>();
-    let Some(index) = (steps != 0).then(|| playlist.offset(steps)).flatten() else {
+    // The last song request this frame wins.
+    let Some(index) = controls
+        .read()
+        .filter_map(|c| match *c {
+            Control::PreviousSong => playlist.offset(-1),
+            Control::NextSong => playlist.offset(1),
+            Control::SelectSong(i) => (i < playlist.entries.len()).then_some(i),
+            _ => None,
+        })
+        .last()
+    else {
         return;
     };
+    if index == playlist.current {
+        return;
+    }
     let next = match playlist.entries[index].load() {
         Ok(next) => next,
         Err(err) => {
@@ -169,96 +169,4 @@ fn switch(
     section.0 = None;
     commands.remove_resource::<LastResult>();
     song.0 = next;
-}
-
-fn spawn_list(mut commands: Commands) {
-    commands.spawn((
-        SongList,
-        Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(palette::HUD_TEXT),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(8.0),
-            top: Val::Percent(40.0),
-            ..default()
-        },
-        BackgroundColor(palette::BACKGROUND.with_alpha(0.75)),
-    ));
-}
-
-fn grade_label(grade: Option<Grade>) -> &'static str {
-    grade.map_or("-", Grade::label)
-}
-
-fn show_list(
-    mut list: Single<(&mut Text, &mut Visibility), With<SongList>>,
-    playlist: Res<Playlist>,
-    titles: Res<Titles>,
-    transport: Res<Transport>,
-    judge: Res<Judge>,
-    bests: Res<Bests>,
-    practice: Res<Practice>,
-) {
-    let (text, visibility) = &mut *list;
-    let wanted = match transport.state {
-        _ if playlist.entries.len() < 2 => Visibility::Hidden,
-        PlayState::Paused => Visibility::Inherited,
-        PlayState::Playing if transport.time.0 < 0.0 => Visibility::Inherited,
-        PlayState::Playing | PlayState::Finished => Visibility::Hidden,
-    };
-    **visibility = wanted;
-    if wanted == Visibility::Hidden {
-        return;
-    }
-    let challenge = for_day(practice.today, playlist.entries.len());
-    let lines: Vec<String> = titles
-        .0
-        .iter()
-        .enumerate()
-        .map(|(i, title)| {
-            let marker = if i == playlist.current { ">" } else { " " };
-            let star = if i == challenge.song {
-                "  <- today"
-            } else {
-                ""
-            };
-            let best = bests.records.best(&RecordKey {
-                title: title.clone(),
-                mode: transport.mode,
-                hands: judge.0.hands(),
-            });
-            let score = best.map_or_else(
-                || "   not played".to_owned(),
-                |b| {
-                    format!(
-                        "{} {:07}",
-                        grade_label(Some(Grade::from_accuracy(b.accuracy))),
-                        b.points
-                    )
-                },
-            );
-            format!("{marker} {title:<36} {score}{star}")
-        })
-        .collect();
-    let today = titles
-        .0
-        .get(challenge.song)
-        .map(|title| {
-            let done = if practice.log.challenge_done(practice.today) {
-                "  (done!)"
-            } else {
-                ""
-            };
-            format!("{}{done}", challenge.describe(title))
-        })
-        .unwrap_or_default();
-    text.0 = format!(
-        "{today}\nSONGS  (PgUp/PgDn)   best in {} mode\n{}",
-        transport.mode.label(),
-        lines.join("\n")
-    );
 }

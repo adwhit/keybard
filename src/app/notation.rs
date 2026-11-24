@@ -3,6 +3,8 @@
 
 mod glyphs;
 
+use bevy::asset::RenderAssetUsages;
+use bevy::mesh::PrimitiveTopology;
 use bevy::prelude::*;
 
 use super::songs::{SongLoad, SongScoped};
@@ -10,6 +12,7 @@ use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::chords::progression;
 use crate::dynamics::markings;
+use crate::glyph;
 use crate::layout::{self, staff};
 use crate::music::{Clef, StaffPosition, StemDirection};
 use crate::notation::{Rest, RestShape, beams, rests};
@@ -24,6 +27,10 @@ struct ClefGizmos;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct NoteHead(pub NoteId);
+
+/// A clef drawn at the start of its staff.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ClefGlyph(pub Clef);
 
 /// A beamed group: its notes, staff and shared stem direction.
 #[derive(Debug, Clone)]
@@ -137,7 +144,10 @@ const KEY_SIGNATURE_X: f32 = 52.0;
 pub fn plugin(app: &mut App) {
     app.init_gizmo_group::<NotationGizmos>()
         .init_gizmo_group::<ClefGizmos>()
-        .add_systems(Startup, (configure_gizmos, create_head_assets))
+        .add_systems(
+            Startup,
+            (configure_gizmos, (create_head_assets, spawn_clefs).chain()),
+        )
         .init_resource::<SongRests>()
         .init_resource::<SongBeams>()
         .add_systems(
@@ -214,6 +224,41 @@ fn create_head_assets(
         played: materials.add(palette::PLAYED_INK),
         right: materials.add(palette::hand(Hand::Right)),
         left: materials.add(palette::hand(Hand::Left)),
+    });
+}
+
+/// Where each clef's glyph starts, left of the key signature.
+const CLEF_X: f32 = 12.0;
+
+/// A filled glyph outline as a mesh, in staff steps.
+fn outline_mesh(outline: &glyph::Outline) -> Mesh {
+    let positions: Vec<[f32; 3]> = outline
+        .triangles
+        .iter()
+        .flatten()
+        .map(|p| [p.x, p.y, 0.0])
+        .collect();
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+}
+
+/// Clefs are filled shapes, drawn once: one per staff.
+fn spawn_clefs(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: Res<HeadMaterials>,
+) {
+    Clef::ALL.into_iter().for_each(|clef| {
+        commands.spawn((
+            ClefGlyph(clef),
+            Mesh2d(meshes.add(outline_mesh(&glyph::clef(clef)))),
+            MeshMaterial2d(materials.ink.clone()),
+            Transform::from_xyz(staff::LEFT_EDGE + CLEF_X, staff::bottom_line(clef), HEAD_Z)
+                .with_scale(Vec3::new(staff::STEP, staff::STEP, 1.0)),
+        ));
     });
 }
 
@@ -314,7 +359,6 @@ fn update_heads(
 
 fn draw_staves(
     mut gizmos: Gizmos<NotationGizmos>,
-    mut clef_gizmos: Gizmos<ClefGizmos>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
 ) {
@@ -328,8 +372,6 @@ fn draw_staves(
                 palette::STAFF_LINE,
             );
         });
-        let origin = Vec2::new(staff::LEFT_EDGE + 22.0, staff::bottom_line(clef));
-        glyphs::draw_clef(&mut clef_gizmos, clef, origin, palette::INK);
         glyphs::draw_key_signature(
             &mut gizmos,
             song.0.key(),

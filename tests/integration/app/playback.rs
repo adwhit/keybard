@@ -407,25 +407,6 @@ fn page_down_switches_to_the_next_song_and_rebuilds_everything() {
 }
 
 #[test]
-fn the_song_list_shows_during_the_lead_in_with_the_current_song_marked() {
-    use keybard::app::songs::SongList;
-    let mut h = playlist_harness(PlayMode::Play);
-    let list = |h: &mut Harness| {
-        let mut q = h
-            .world()
-            .query_filtered::<(&Text, &Visibility), With<SongList>>();
-        let (text, vis) = q.single(h.app.world()).unwrap();
-        (text.0.clone(), *vis != Visibility::Hidden)
-    };
-    let (text, shown) = list(&mut h);
-    assert!(shown);
-    assert!(text.contains("> Twinkle"), "{text}");
-    assert!(text.contains("Fur Elise"), "{text}");
-    h.run_until(0.5);
-    assert!(!list(&mut h).1, "hidden while playing");
-}
-
-#[test]
 fn switching_songs_mid_performance_is_safe() {
     let mut h = playlist_harness(PlayMode::Play);
     // Build up effects, ticks and held keys from the first song...

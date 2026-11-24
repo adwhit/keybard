@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use tracing::info;
 
+use super::controls::Control;
 use super::effects::popup;
 use super::results::LastResult;
 use super::transport::{PlayState, Speed, Transport, advance};
@@ -89,14 +90,14 @@ pub fn plugin(app: &mut App) {
 }
 
 fn toggle(
-    keys: Res<ButtonInput<KeyCode>>,
+    mut controls: MessageReader<Control>,
     mut section: ResMut<SectionLoop>,
     mut transport: ResMut<Transport>,
     song: Res<ActiveSong>,
     mut judge: ResMut<Judge>,
     result: Option<Res<LastResult>>,
 ) {
-    if !keys.just_pressed(KeyCode::F3) {
+    if !controls.read().any(|c| *c == Control::ToggleLoop) {
         return;
     }
     // From the results card, F3 drills the weakest stretch.

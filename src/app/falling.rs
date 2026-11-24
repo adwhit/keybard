@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+use super::controls::Control;
 use super::songs::{SongLoad, SongScoped};
 use super::textures::Textures;
 use super::transport::Transport;
@@ -282,19 +283,23 @@ fn spawn_bars(
     });
 }
 
-fn toggle_view(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>) {
-    if keys.just_pressed(KeyCode::F6) {
-        *view = match *view {
-            View::Bars => View::SightReading,
-            View::SightReading => View::Bars,
-        };
-    }
+fn toggle_view(mut controls: MessageReader<Control>, mut view: ResMut<View>) {
+    controls
+        .read()
+        .filter(|c| **c == Control::ToggleSightReading)
+        .for_each(|_| {
+            *view = match *view {
+                View::Bars => View::SightReading,
+                View::SightReading => View::Bars,
+            };
+        });
 }
 
-fn cycle_labels(keys: Res<ButtonInput<KeyCode>>, mut labels: ResMut<BarLabels>) {
-    if keys.just_pressed(KeyCode::F1) {
-        *labels = labels.next();
-    }
+fn cycle_labels(mut controls: MessageReader<Control>, mut labels: ResMut<BarLabels>) {
+    controls
+        .read()
+        .filter(|c| **c == Control::CycleLabels)
+        .for_each(|_| *labels = labels.next());
 }
 
 fn show_labels(

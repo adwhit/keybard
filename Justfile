@@ -25,6 +25,10 @@ fmt:
 fmt-check:
     cargo fmt --check
 
+# Start the app in release mode with its defaults
+run:
+    cargo run --release
+
 # Play a song in the window. e.g. `just play --song twinkle --mode wait`
 play *ARGS:
     cargo run --release -- {{ARGS}}

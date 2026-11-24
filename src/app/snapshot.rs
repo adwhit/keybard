@@ -28,8 +28,11 @@ pub struct SnapshotPlan {
 #[derive(Resource, Clone)]
 pub struct OffscreenTarget(pub Handle<Image>);
 
-/// Frames to keep running after the last capture so it reaches disk.
-const FRAMES_TO_FLUSH: u8 = 20;
+/// Frames to draw before any capture, so layout and text are ready (the
+/// clock may never move, e.g. on the start screen).
+const WARM_UP_FRAMES: u32 = 5;
+/// Give up waiting for captures to reach disk after this many frames.
+const FRAMES_TO_FLUSH: u32 = 600;
 /// Backstop so a snapshot run can never spin forever (10 minutes of song).
 const MAX_FRAMES: u32 = 60 * 60 * 10;
 
@@ -46,7 +49,10 @@ struct Pending {
     dir: PathBuf,
     /// Sorted descending so the next capture is `last()`.
     times: Vec<Seconds>,
-    flushing: Option<u8>,
+    /// Files captured so far, to wait for before exiting.
+    saved: Vec<PathBuf>,
+    /// Frames spent waiting for the files once every capture is taken.
+    flushing: Option<u32>,
 }
 
 pub fn plugin(plan: SnapshotPlan) -> impl Fn(&mut App) {
@@ -56,6 +62,7 @@ pub fn plugin(plan: SnapshotPlan) -> impl Fn(&mut App) {
         app.insert_resource(Pending {
             dir: plan.dir.clone(),
             times,
+            saved: Vec::new(),
             flushing: None,
         })
         .add_systems(Update, capture.after(Phase::Present));
@@ -101,12 +108,20 @@ fn capture(
         exit.write(AppExit::error());
         return;
     }
-    if let Some(frames) = pending.flushing {
-        if frames == 0 {
+    if let Some(waited) = pending.flushing {
+        // GPU readback can take many (fast, offscreen) frames, more so for
+        // big images: exit once every file is on disk.
+        if pending.saved.iter().all(|p| p.exists()) {
             exit.write(AppExit::Success);
+        } else if waited >= FRAMES_TO_FLUSH {
+            warn!("snapshots did not reach disk in time; exiting");
+            exit.write(AppExit::error());
         } else {
-            pending.flushing = Some(frames - 1);
+            pending.flushing = Some(waited + 1);
         }
+        return;
+    }
+    if *frames <= WARM_UP_FRAMES {
         return;
     }
     let finished = transport.state == PlayState::Finished;
@@ -122,8 +137,9 @@ fn capture(
     info!(path = %path.display(), time = transport.time.0, "capturing snapshot");
     commands
         .spawn(Screenshot::image(target.0.clone()))
-        .observe(save_to_disk(path));
+        .observe(save_to_disk(path.clone()));
+    pending.saved.push(path);
     if pending.times.is_empty() {
-        pending.flushing = Some(FRAMES_TO_FLUSH);
+        pending.flushing = Some(0);
     }
 }

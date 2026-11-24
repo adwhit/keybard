@@ -14,13 +14,51 @@ name = "keybard"
 test = false
 
 [dependencies]
-bevy = "0.20.1"
+# Only what a 2D app with UI, text, gizmos and synthesised audio needs.
+# Bevy's defaults add 3D/PBR, glTF, scenes, mesh picking, gamepads,
+# clipboard, animation and audio codecs.
+bevy = { version = "0.20.1", default-features = false, features = [
+    # Core app and platform
+    "std",
+    "async_executor",
+    "multi_threaded",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_winit",
+    "keyboard",
+    "mouse",
+    "x11",
+    "wayland",
+    # 2D rendering: sprites, Mesh2d, gizmos, text and UI
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite_render",
+    "bevy_gizmos_render",
+    "bevy_text",
+    "default_font",
+    "bevy_ui_render",
+    # Clicking buttons
+    "bevy_picking",
+    "ui_picking",
+    # Synthesised notes play through bevy_audio; no file codecs needed
+    "bevy_audio",
+    # Offscreen snapshots are saved as PNG
+    "png",
+] }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
-clap = { version = "4.6.9", features = ["derive"] }
+# No terminal colours or "did you mean" suggestions: fewer crates to build.
+clap = { version = "4.6.9", default-features = false, features = [
+    "std",
+    "derive",
+    "help",
+    "usage",
+    "error-context",
+] }
 crossbeam-channel = "0.5.17"
 directories = "6.0.0"
 midir = "0.11.1"
-midly = "0.5.3"
+# Without the default "parallel" feature, which pulls in rayon.
+midly = { version = "0.5.3", default-features = false, features = ["std"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
 
@@ -32,6 +70,9 @@ tempfile = "3.27.0"
 opt-level = 2
 # Dependency debug info makes every binary ~200MB, slowing links and loads.
 debug = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.21.2", default-features = false }
 
 # A little optimisation for our own crate makes headless test frames cheaper
 # without slowing incremental builds noticeably.

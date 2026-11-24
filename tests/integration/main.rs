@@ -7,6 +7,7 @@ mod challenge;
 mod chords;
 mod dynamics;
 mod fingering;
+mod glyph;
 mod key;
 mod layout;
 mod midi_file;

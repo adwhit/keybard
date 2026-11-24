@@ -4,6 +4,7 @@ use std::process::ExitCode;
 use bevy::app::AppExit;
 use clap::{Parser, ValueEnum};
 use keybard::app::falling::View;
+use keybard::app::menu::Screen;
 use keybard::app::songs::{Playlist, SongSource};
 use keybard::app::{self, Backend, Logging, MidiInput, Options, Player, RecordStore, SnapshotPlan};
 use keybard::builtin::BuiltinSong;
@@ -52,12 +53,13 @@ impl From<Mode> for PlayMode {
 struct Cli {
     /// A Standard MIDI File (.mid) to play. Overrides --song.
     midi: Option<PathBuf>,
-    /// Built-in song to play when no MIDI file is given.
-    #[arg(long, value_enum, default_value_t = BuiltinSong::OdeToJoy)]
-    song: BuiltinSong,
-    /// Starting play mode (Tab cycles in-app).
-    #[arg(long, value_enum, default_value_t = Mode::Listen)]
-    mode: Mode,
+    /// Built-in song to play when no MIDI file is given. Skips the start
+    /// screen, as do a MIDI file, --mode, --loop and --autopilot.
+    #[arg(long, value_enum)]
+    song: Option<BuiltinSong>,
+    /// Play mode (default listen; Tab cycles in-app).
+    #[arg(long, value_enum)]
+    mode: Option<Mode>,
     /// Which hands you play; the computer plays the rest (F2 cycles in-app).
     #[arg(long, value_enum, default_value_t = HandsArg::Both)]
     hands: HandsArg,
@@ -73,6 +75,9 @@ struct Cli {
     /// Start in sight-reading mode: no falling bars or keyboard cues (F6).
     #[arg(long)]
     sight_reading: bool,
+    /// Open on the start screen even when a song or mode is given.
+    #[arg(long)]
+    start_screen: bool,
     /// Don't connect to MIDI input devices.
     #[arg(long)]
     no_midi: bool,
@@ -111,9 +116,10 @@ fn main() -> ExitCode {
         ports.iter().for_each(|name| println!("{name}"));
         return ExitCode::SUCCESS;
     }
+    let builtin = cli.song.unwrap_or(BuiltinSong::OdeToJoy);
     let song = match &cli.midi {
         Some(path) => midi_file::load(path),
-        None => cli.song.load(),
+        None => builtin.load(),
     };
     // A MIDI file goes first, followed by every built-in.
     let builtins = BuiltinSong::value_variants()
@@ -130,7 +136,7 @@ fn main() -> ExitCode {
             builtins.collect(),
             BuiltinSong::value_variants()
                 .iter()
-                .position(|b| *b == cli.song)
+                .position(|b| *b == builtin)
                 .unwrap_or(0),
         ),
     };
@@ -151,6 +157,14 @@ fn main() -> ExitCode {
         };
     }
     let transient = cli.headless || cli.snapshot.is_some();
+    // Asking for something specific goes straight to it; otherwise start on
+    // the start screen.
+    let direct = transient
+        || cli.autopilot
+        || cli.midi.is_some()
+        || cli.song.is_some()
+        || cli.mode.is_some()
+        || cli.loop_from.is_some();
     let practice_log = match (transient, records::default_path()) {
         (false, Some(bests)) => RecordStore::File(bests.with_file_name("practice.tsv")),
         _ => RecordStore::Memory,
@@ -162,7 +176,7 @@ fn main() -> ExitCode {
     };
     let exit = app::run(Options {
         song,
-        mode: cli.mode.into(),
+        mode: cli.mode.unwrap_or(Mode::Listen).into(),
         midi_input: match (cli.no_midi, &cli.midi_port) {
             (true, _) => MidiInput::Disabled,
             (false, Some(name)) => MidiInput::Enabled(PortChoice::Named(name.clone())),
@@ -192,6 +206,11 @@ fn main() -> ExitCode {
             View::SightReading
         } else {
             View::Bars
+        },
+        screen: if direct && !cli.start_screen {
+            Screen::Song
+        } else {
+            Screen::Menu
         },
     });
     match exit {

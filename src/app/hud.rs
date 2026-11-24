@@ -271,7 +271,12 @@ fn update_score(
         mult = score.multiplier(),
     );
     let best = current_best(&bests, &song, &judge, &transport);
-    if let Some(line) = records::chase(score.points, best).label() {
+    // Once finished, the run is already in the bests; the card says how it went.
+    let chasing = transport.state != PlayState::Finished;
+    if let Some(line) = records::chase(score.points, best)
+        .label()
+        .filter(|_| chasing)
+    {
         text.0.push('\n');
         text.0.push_str(&line);
     }

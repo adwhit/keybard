@@ -23,7 +23,8 @@ Needs a recent stable Rust toolchain and [`just`](https://just.systems)
 (pinned in `mise.toml`).
 
 ```bash
-just play                          # Ode to Joy, Listen mode
+just run                           # open the start screen (release build)
+just play --song twinkle           # straight into a song, Listen mode
 just play --song twinkle --mode wait
 just play-midi path/to/song.mid
 just play --mode play --autopilot  # watch the built-in player go for a full combo
@@ -31,6 +32,16 @@ just smoke                         # whole song headlessly, no window/GPU/audio
 just snapshot                      # render PNGs offscreen into target/snapshots
 just listen twinkle                # render the song to target/twinkle.wav
 ```
+
+`just run` opens on the start screen: click a song, a mode (Listen, Wait or
+Play) and which hands you'll play, toggle sight-reading or the metronome, then
+**Start** (or press Enter). Escape during a song comes back to it, and Escape
+there quits. Giving a song, MIDI file, `--mode`, `--loop` or `--autopilot` on
+the command line goes straight into the song (`--start-screen` opens the start
+screen anyway). Everything can be driven with the mouse: the results card has
+**Play again**, **Drill weakest bars**, **Next song** and **Start screen**
+buttons, and on macOS the menu bar has keybard, Song, Play, Mode, View and
+Window menus covering every keyboard shortcut.
 
 Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
 `minuet` (Minuet in G, simplified) and `jingle-bells` (the chorus). Any Standard MIDI File
@@ -40,12 +51,12 @@ single track the split is at middle C.
 Every day one song in the playlist is today's challenge (it rotates daily):
 get a B or better on it in Play mode and the results card says "DAILY
 CHALLENGE COMPLETE!" (with your challenge streak). Completions are remembered
-in the practice log, so replays the same day don't re-celebrate, and the song
-list marks today's challenge "(done!)".
+in the practice log, so replays the same day don't re-celebrate, and the start
+screen marks today's challenge "(done!)".
 
-PgUp/PgDn switch songs at any time, cycling through every built-in plus the
-MIDI file you opened. During the lead-in and while paused, a song list shows
-each one with your best grade and points for the current mode.
+PgUp/PgDn (or the Song menu) switch songs at any time, cycling through every
+built-in plus the MIDI file you opened. The start screen lists each one with
+your best grade and points for the chosen mode and hands.
 
 ### Modes (Tab cycles)
 
@@ -200,7 +211,8 @@ that records every judgement as a coloured tick.
 | F6 | sight-reading mode (no bars or key cues) |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
-| Esc | quit |
+| Enter | start the song (start screen) |
+| Esc | back to the start screen; quit from there |
 | Z S X D C V … | play the lower octave (C3 by default) |
 | Q 2 W 3 E R … | play the upper octave (C4 by default) |
 | - / = | shift the computer-keyboard octave |
@@ -263,9 +275,13 @@ Layout:
 - `src/render.rs`: offline song mixdown to WAV
 - `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
+- `src/glyph.rs`: treble and bass clefs as filled broad-nib pen strokes
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
   notation, HUD, effects, results, autopilot, generated textures and
   offscreen snapshots
+- `src/app/controls.rs`: every user command as one `Control` message, sent by
+  key shortcuts, buttons (`ControlButton`) and the macOS menu bar
+  (`src/app/menubar.rs`); `src/app/menu.rs` is the start screen
 
 ## Status
 

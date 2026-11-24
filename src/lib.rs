@@ -8,6 +8,7 @@ pub mod chords;
 pub mod dynamics;
 pub mod error;
 pub mod fingering;
+pub mod glyph;
 pub mod key;
 pub mod layout;
 pub mod midi_file;

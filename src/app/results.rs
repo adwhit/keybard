@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use tracing::{info, warn};
 
+use super::controls::Control;
 use super::transport::{PlayState, Transport};
+use super::widgets::button;
 use super::{ActiveSong, Judge, Phase, palette};
 use crate::achievements::{Achievement, Achievements, RunSummary};
 use crate::performance::{Insights, Score, Timing};
@@ -225,15 +227,18 @@ fn spawn_gallery(mut commands: Commands) {
 }
 
 fn toggle_gallery(
-    keys: Res<ButtonInput<KeyCode>>,
+    mut controls: MessageReader<Control>,
     mut gallery: Single<&mut Visibility, With<AchievementGallery>>,
 ) {
-    if keys.just_pressed(KeyCode::F5) {
-        **gallery = match **gallery {
-            Visibility::Hidden => Visibility::Inherited,
-            _ => Visibility::Hidden,
-        };
-    }
+    controls
+        .read()
+        .filter(|c| **c == Control::ToggleAchievements)
+        .for_each(|_| {
+            **gallery = match **gallery {
+                Visibility::Hidden => Visibility::Inherited,
+                _ => Visibility::Hidden,
+            };
+        });
 }
 
 fn refresh_gallery(
@@ -256,6 +261,7 @@ fn show_card(
     transport: Res<Transport>,
     practice: Res<Practice>,
     unlocked: Res<Unlocked>,
+    playlist: Res<Playlist>,
 ) {
     let Some(result) = result else {
         cards.iter().for_each(|e| commands.entity(e).despawn());
@@ -263,7 +269,13 @@ fn show_card(
     };
     if result.is_added() && transport.state == PlayState::Finished {
         cards.iter().for_each(|e| commands.entity(e).despawn());
-        spawn_card(&mut commands, &result, &practice, &unlocked);
+        spawn_card(
+            &mut commands,
+            &result,
+            &practice,
+            &unlocked,
+            playlist.entries().len() > 1,
+        );
     }
 }
 
@@ -283,6 +295,7 @@ fn spawn_card(
     result: &LastResult,
     practice: &Practice,
     unlocked: &Unlocked,
+    has_next_song: bool,
 ) {
     let score = &result.score;
     let grade = score.grade();
@@ -332,7 +345,7 @@ fn spawn_card(
                 border: UiRect::all(Val::Px(2.0)),
                 ..default()
             },
-            BackgroundColor(palette::BACKGROUND.with_alpha(0.98)),
+            BackgroundColor(palette::BACKGROUND),
             BorderColor::all(grade_color),
             GlobalZIndex(10),
         ))
@@ -426,8 +439,24 @@ fn spawn_card(
                 12.0,
                 palette::HUD_DIM,
             ));
+            card.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(10.0),
+                margin: UiRect::top(Val::Px(8.0)),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn(button(Control::TogglePlay, "Play again", 16.0));
+                if result.weakest.is_some() {
+                    row.spawn(button(Control::ToggleLoop, "Drill weakest bars", 16.0));
+                }
+                if has_next_song {
+                    row.spawn(button(Control::NextSong, "Next song", 16.0));
+                }
+                row.spawn(button(Control::OpenMenu, "Start screen", 16.0));
+            });
             card.spawn(text(
-                "Space to play again | Tab to change mode | Esc to quit",
+                "Space plays again | F3 drills | PgDn next song | Esc start screen",
                 12.0,
                 palette::HUD_DIM,
             ));

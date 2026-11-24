@@ -110,6 +110,7 @@ fn starting_with_a_loop_begins_just_before_that_bar() {
         playlist: Default::default(),
         practice_log: RecordStore::Memory,
         view: Default::default(),
+        screen: keybard::app::menu::Screen::Song,
     });
     let region = h
         .world()

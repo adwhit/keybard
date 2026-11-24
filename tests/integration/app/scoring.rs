@@ -187,11 +187,6 @@ fn autopilot_plays_a_whole_song_and_earns_a_result() {
     assert_eq!(h.score(), Score::default());
 }
 
-fn ui_texts(h: &mut Harness) -> Vec<String> {
-    let mut q = h.world().query::<&Text>();
-    q.iter(h.app.world()).map(|t| t.0.clone()).collect()
-}
-
 #[test]
 fn the_hud_chases_your_personal_best_live() {
     let dir = tempfile::tempdir().unwrap();
@@ -214,16 +209,16 @@ fn the_hud_chases_your_personal_best_live() {
     );
     h.run_until(-0.5);
     assert!(
-        ui_texts(&mut h)
+        h.ui_texts()
             .iter()
             .any(|t| t.contains("best 400 | 400 to go")),
         "{:?}",
-        ui_texts(&mut h)
+        h.ui_texts()
     );
     h.run_until(-0.01);
     h.midi(60, KeyEdge::Down);
     h.frames(2);
-    assert!(ui_texts(&mut h).iter().any(|t| t.contains("100 to go")));
+    assert!(h.ui_texts().iter().any(|t| t.contains("100 to go")));
     assert!(!h.texts().contains(&"BEST BEATEN!".to_owned()));
     h.run_until(0.99);
     h.midi(64, KeyEdge::Down);
@@ -233,11 +228,7 @@ fn the_hud_chases_your_personal_best_live() {
         "{:?}",
         h.texts()
     );
-    assert!(
-        ui_texts(&mut h)
-            .iter()
-            .any(|t| t.contains("best beaten by"))
-    );
+    assert!(h.ui_texts().iter().any(|t| t.contains("best beaten by")));
     // Only once per run.
     h.run_until(1.99);
     h.midi(67, KeyEdge::Down);
@@ -576,7 +567,7 @@ fn imperfect_bars_pass_quietly() {
 #[test]
 fn todays_challenge_is_listed_and_completing_it_is_announced() {
     use keybard::app::practice::Practice;
-    use keybard::app::songs::{Playlist, SongList, SongSource};
+    use keybard::app::songs::{Playlist, SongSource};
     use keybard::builtin::BuiltinSong;
     use keybard::challenge::for_day;
     let songs = [BuiltinSong::Twinkle, BuiltinSong::Scale];
@@ -598,13 +589,9 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
         ),
         practice_log: RecordStore::Memory,
         view: Default::default(),
+        screen: keybard::app::menu::Screen::Song,
     });
     assert_eq!(h.world().resource::<Practice>().today, today);
-    let list = {
-        let mut q = h.world().query_filtered::<&Text, With<SongList>>();
-        q.single(h.app.world()).unwrap().0.clone()
-    };
-    assert!(list.contains("TODAY'S CHALLENGE"), "{list}");
     while h.transport().state != PlayState::Finished {
         h.app.update();
     }
@@ -632,12 +619,13 @@ fn todays_challenge_is_listed_and_completing_it_is_announced() {
         h.world().resource::<LastResult>().challenge,
         ChallengeOutcome::AlreadyDone
     );
-    h.tap(KeyCode::Space);
-    let list = {
-        let mut q = h.world().query_filtered::<&Text, With<SongList>>();
-        q.single(h.app.world()).unwrap().0.clone()
-    };
-    assert!(list.contains("(done!)"), "{list}");
+    // The start screen remembers it too.
+    h.tap(KeyCode::Escape);
+    assert!(
+        h.ui_texts().iter().any(|t| t.contains("(done!)")),
+        "{:?}",
+        h.ui_texts()
+    );
 }
 
 #[test]

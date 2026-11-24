@@ -33,6 +33,12 @@ pub const TOUCH_CUE: Color = Color::srgb(0.80, 0.70, 1.0);
 pub const DARK_INK: Color = Color::srgb(0.04, 0.04, 0.06);
 pub const LIGHT_INK: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const PRESSED: Color = Color::srgb(1.0, 0.65, 0.15);
+/// Clickable buttons.
+pub const BUTTON: Color = Color::srgb(0.13, 0.13, 0.18);
+pub const BUTTON_HOVER: Color = Color::srgb(0.20, 0.20, 0.28);
+pub const BUTTON_PRESSED: Color = Color::srgb(0.30, 0.26, 0.12);
+pub const BUTTON_SELECTED: Color = Color::srgb(0.26, 0.22, 0.10);
+pub const BUTTON_BORDER: Color = Color::srgb(0.26, 0.26, 0.34);
 pub const KEY_LABEL: Color = Color::srgb(0.45, 0.45, 0.50);
 pub const HUD_TEXT: Color = Color::srgb(0.85, 0.85, 0.88);
 pub const HUD_DIM: Color = Color::srgb(0.50, 0.50, 0.56);
