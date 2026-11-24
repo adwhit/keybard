@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 use super::controls::Control;
+use super::section::SectionLoop;
 use super::songs::{SongLoad, SongScoped};
 use super::textures::Textures;
 use super::transport::Transport;
@@ -329,6 +330,7 @@ fn move_bars(
     song: Res<ActiveSong>,
     judge: Res<Judge>,
     view: Res<View>,
+    section: Res<SectionLoop>,
 ) {
     let lookahead = layout::fall_lookahead();
     let now = transport.time;
@@ -359,13 +361,18 @@ fn move_bars(
                 BarState::Played => palette::hand_played(note.hand),
                 BarState::Missed => palette::MISSED.darker(0.25),
             };
-            // The computer's part is a translucent ghost when you practise
-            // one hand, so your own notes stand out.
+            // Around a drilled section, the warm-up and the tail are greyed
+            // out. Otherwise the computer's part is a translucent ghost when
+            // you practise one hand, so your own notes stand out.
+            let around_drill = section
+                .0
+                .as_ref()
+                .is_some_and(|looping| !looping.region.contains(note.start));
             let yours = !transport.mode.is_scored() || judge.0.is_players(&song.0, bar.0);
-            sprite.color = if yours {
-                color
-            } else {
-                color.with_alpha(GHOST_ALPHA)
+            sprite.color = match (around_drill, yours) {
+                (true, _) => palette::DRILL_CONTEXT,
+                (false, true) => color,
+                (false, false) => color.with_alpha(GHOST_ALPHA),
             };
         });
 }

@@ -532,3 +532,65 @@ mod expression {
         );
     }
 }
+
+mod focus {
+    use keybard::performance::{NoteStatus, Performance, PlayMode, PressOutcome};
+    use keybard::practice::LoopRegion;
+    use keybard::song::{NoteId, Seconds};
+
+    use super::{hit, n, song_from};
+
+    /// C4 E4 G4 C5 at 0s, 1s, 2s and 3s; the focus is E4 and G4.
+    fn focused() -> (keybard::song::Song, Performance) {
+        let song = song_from("C4 E4 G4 C5");
+        let mut perf = Performance::new(&song);
+        perf.set_focus(Some(LoopRegion {
+            start: Seconds(1.0),
+            end: Seconds(3.0),
+        }));
+        (song, perf)
+    }
+
+    #[test]
+    fn warm_up_notes_are_played_for_you_and_never_missed() {
+        let (song, mut perf) = focused();
+        let advance = perf.advance(&song, PlayMode::Play, Seconds(-1.0), Seconds(0.5));
+        assert_eq!(perf.status(NoteId(0)), NoteStatus::AutoPlayed);
+        assert!(advance.missed.is_empty());
+        assert!(!perf.is_players(&song, NoteId(0)));
+        assert!(perf.is_players(&song, NoteId(1)));
+        hit(perf.press(&song, n(64), Seconds(1.0)));
+    }
+
+    #[test]
+    fn notes_past_the_focus_are_not_yours_either() {
+        let (song, mut perf) = focused();
+        assert!(!perf.is_players(&song, NoteId(3)));
+        assert_eq!(
+            perf.press(&song, n(72), Seconds(3.0)),
+            PressOutcome::Wrong,
+            "the tail is not to be played"
+        );
+    }
+
+    #[test]
+    fn wait_mode_does_not_wait_for_warm_up_notes() {
+        let (song, mut perf) = focused();
+        let advance = perf.advance(&song, PlayMode::Wait, Seconds(-1.0), Seconds(0.5));
+        assert_eq!(advance.time, Seconds(0.5), "kept going past C4");
+        let held = perf.advance(&song, PlayMode::Wait, Seconds(0.5), Seconds(1.5));
+        assert_eq!(
+            held.time,
+            Seconds(1.0),
+            "waits for E4, the first focus note"
+        );
+    }
+
+    #[test]
+    fn clearing_the_focus_gives_every_note_back() {
+        let (song, mut perf) = focused();
+        perf.set_focus(None);
+        assert!(perf.is_players(&song, NoteId(0)));
+        assert!(perf.is_players(&song, NoteId(3)));
+    }
+}

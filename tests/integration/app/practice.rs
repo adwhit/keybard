@@ -92,6 +92,104 @@ fn looping_a_section_repeats_it_and_counts_passes() {
     );
 }
 
+/// Ode to Joy in Play mode, drilling 4 bars from bar 5.
+fn drilling_ode_to_joy() -> Harness {
+    Harness::build(Options {
+        song: keybard::builtin::BuiltinSong::OdeToJoy.load().unwrap(),
+        mode: PlayMode::Play,
+        midi_input: MidiInput::Disabled,
+        backend: Backend::Headless,
+        logging: Logging::Disabled,
+        player: Player::Human,
+        records: RecordStore::Memory,
+        hands: Hands::Both,
+        loop_from: Some(5),
+        playlist: Default::default(),
+        practice_log: RecordStore::Memory,
+        view: Default::default(),
+        screen: keybard::app::menu::Screen::Song,
+    })
+}
+
+fn bar_colour(h: &mut Harness, id: NoteId) -> Color {
+    let mut q = h.world().query::<(&FallingBar, &Sprite)>();
+    q.iter(h.app.world())
+        .find(|(b, _)| b.0 == id)
+        .map(|(_, s)| s.color)
+        .unwrap()
+}
+
+#[test]
+fn a_drill_warms_up_and_ends_on_greyed_out_bars() {
+    use keybard::app::section::SectionLoop;
+    let mut h = drilling_ode_to_joy();
+    let region = h
+        .world()
+        .resource::<SectionLoop>()
+        .0
+        .as_ref()
+        .unwrap()
+        .region;
+    let song = h.world().resource::<ActiveSong>().0.clone();
+    let before = |t: Seconds| {
+        song.iter()
+            .filter(|(_, n)| n.start < t)
+            .map(|(id, _)| id)
+            .last()
+            .unwrap()
+    };
+    let first_in = song
+        .iter()
+        .find(|(_, n)| n.start >= region.start)
+        .map(|(id, _)| id)
+        .unwrap();
+    let first_after = song
+        .iter()
+        .find(|(_, n)| n.start >= region.end)
+        .map(|(id, _)| id)
+        .unwrap();
+
+    // Warm-up: the bar before the section falls greyed out...
+    h.run_until(region.start.0 - 0.5);
+    let warm_up = before(region.start);
+    assert_eq!(bar_colour(&mut h, warm_up), palette::DRILL_CONTEXT);
+    assert_ne!(bar_colour(&mut h, first_in), palette::DRILL_CONTEXT);
+    // ...and is played for you, not missed.
+    h.run_until(region.start.0 + 0.1);
+    assert_eq!(h.status(warm_up.0), NoteStatus::AutoPlayed);
+    assert_eq!(h.score().missed, 0);
+
+    // The staff greys the same notes.
+    let head_material = |h: &mut Harness, id: NoteId| {
+        let mut q = h.world().query::<(
+            &keybard::app::notation::NoteHead,
+            &MeshMaterial2d<ColorMaterial>,
+        )>();
+        let handle = q
+            .iter(h.app.world())
+            .find(|(head, _)| head.0 == id)
+            .map(|(_, m)| m.0.clone())
+            .unwrap();
+        h.world()
+            .resource::<Assets<ColorMaterial>>()
+            .get(&handle)
+            .unwrap()
+            .color
+    };
+    let next_in = song
+        .iter()
+        .find(|(_, n)| n.start > h.time() + Seconds(0.3) && region.contains(n.start))
+        .map(|(id, _)| id)
+        .unwrap();
+    assert_eq!(head_material(&mut h, next_in), palette::INK);
+
+    // The end: what follows the section shows greyed out before the loop
+    // goes round again.
+    h.run_until(region.end.0 - 0.3);
+    assert_eq!(bar_colour(&mut h, first_after), palette::DRILL_CONTEXT);
+    assert_eq!(head_material(&mut h, first_after), palette::DRILL_CONTEXT);
+}
+
 #[test]
 fn starting_with_a_loop_begins_just_before_that_bar() {
     use keybard::app::section::SectionLoop;

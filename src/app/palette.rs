@@ -39,6 +39,8 @@ pub const BUTTON_HOVER: Color = Color::srgb(0.20, 0.20, 0.28);
 pub const BUTTON_PRESSED: Color = Color::srgb(0.30, 0.26, 0.12);
 pub const BUTTON_SELECTED: Color = Color::srgb(0.26, 0.22, 0.10);
 pub const BUTTON_BORDER: Color = Color::srgb(0.26, 0.26, 0.34);
+/// Notes around a drilled section (warm-up and tail): greyed out.
+pub const DRILL_CONTEXT: Color = Color::srgba(0.55, 0.55, 0.60, 0.45);
 /// The chord shortcut tag in a button's corner.
 pub const CHORD_BADGE: Color = Color::srgb(1.0, 0.80, 0.30);
 pub const KEY_LABEL: Color = Color::srgb(0.45, 0.45, 0.50);

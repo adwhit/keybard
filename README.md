@@ -90,7 +90,10 @@ on every beat while you play, accented on each bar's downbeat.
 
 F3 loops the 4 bars you're in, or start with `--loop 9` to drill bars 9-12.
 When the clock reaches the end of the section it rewinds to a lead-in before
-it, re-arms the notes and counts a pass. The HUD shows the pass number, how
+it, re-arms the notes and counts a pass. The lead-in is a warm-up: the music
+before the section falls as greyed-out bars (and grey notes on the staff),
+played for you and never scored or waited on. What follows the section shows
+greyed out too, so you can see the end coming. The HUD shows the pass number, how
 many passes were clean, and the last pass's hits, misses and wrong notes. The
 section is highlighted on the progress strip. F3 again stops looping.
 

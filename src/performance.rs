@@ -9,7 +9,8 @@ pub use score::{Grade, HIT_WINDOW, Heat, Score, Timing};
 
 use crate::dynamics::{self, Touch, Velocity};
 use crate::music::MidiNote;
-use crate::song::{Hand, NoteId, Seconds, Song};
+use crate::practice::LoopRegion;
+use crate::song::{Hand, Note, NoteId, Seconds, Song};
 
 /// Whose notes to consider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +136,8 @@ pub struct Performance {
     /// In Wait mode, how long the clock has been held at the current note.
     stall: Seconds,
     hands: Hands,
+    /// A drilled section: only notes starting in it are the player's.
+    focus: Option<LoopRegion>,
     /// Timing of each hit note (negative = early), for insights.
     offsets: Vec<Seconds>,
     /// How hard each hit note was played, when the keyboard can tell.
@@ -148,6 +151,7 @@ impl Performance {
             score: Score::default(),
             stall: Seconds(0.0),
             hands: Hands::Both,
+            focus: None,
             offsets: vec![Seconds(0.0); song.notes().len()],
             touches: vec![None; song.notes().len()],
         }
@@ -162,9 +166,24 @@ impl Performance {
         self.hands = hands;
     }
 
+    /// Limit the player's part to notes starting in `region` (a drilled
+    /// section); the computer plays the rest, as a warm-up and a tail.
+    pub fn set_focus(&mut self, region: Option<LoopRegion>) {
+        self.focus = region;
+    }
+
+    pub fn focus(&self) -> Option<LoopRegion> {
+        self.focus
+    }
+
     /// Whether the player (rather than the computer) plays this note.
     pub fn is_players(&self, song: &Song, id: NoteId) -> bool {
-        self.hands.includes(song.note(id).hand)
+        self.owns(song.note(id))
+    }
+
+    /// The player's notes: their hands, within the focus if there is one.
+    fn owns(&self, note: &Note) -> bool {
+        self.hands.includes(note.hand) && self.focus.is_none_or(|r| r.contains(note.start))
     }
 
     pub fn status(&self, id: NoteId) -> NoteStatus {
@@ -193,9 +212,10 @@ impl Performance {
     }
 
     pub fn reset(&mut self, song: &Song) {
-        let hands = self.hands;
+        let (hands, focus) = (self.hands, self.focus);
         *self = Self::new(song);
         self.hands = hands;
+        self.focus = focus;
     }
 
     /// Pending notes starting before `before`, optionally only one owner's.
@@ -205,8 +225,8 @@ impl Performance {
             .filter(|(id, _)| self.statuses[id.0] == NoteStatus::Pending)
             .filter(|(_, n)| match owner {
                 Owner::Anyone => true,
-                Owner::Player => self.hands.includes(n.hand),
-                Owner::Computer => !self.hands.includes(n.hand),
+                Owner::Player => self.owns(n),
+                Owner::Computer => !self.owns(n),
             })
             .map(|(id, _)| id)
             .collect()
@@ -284,7 +304,7 @@ impl Performance {
         let bars = (song.duration().0 / bar).ceil().max(1.0) as usize;
         let mut sums = vec![(0.0_f32, 0_u32); bars];
         song.iter()
-            .filter(|(_, n)| self.hands.includes(n.hand))
+            .filter(|(_, n)| self.owns(n))
             .filter_map(|(id, n)| {
                 let earned = match self.statuses[id.0] {
                     NoteStatus::Hit(timing) => timing.weight(),
@@ -311,7 +331,7 @@ impl Performance {
         let length = song.tempo.bar_length().0;
         let mut notes = song
             .iter()
-            .filter(|(_, n)| self.hands.includes(n.hand))
+            .filter(|(_, n)| self.owns(n))
             .filter(|(_, n)| ((n.start.0 / length + 1e-4) as usize) == bar)
             .peekable();
         notes.peek().is_some()
@@ -323,7 +343,7 @@ impl Performance {
         let judged = |hand: Hand| {
             let weights: Vec<f32> = song
                 .iter()
-                .filter(|(_, n)| n.hand == hand && self.hands.includes(hand))
+                .filter(|(_, n)| n.hand == hand && self.owns(n))
                 .filter_map(|(id, _)| match self.statuses[id.0] {
                     NoteStatus::Hit(t) => Some(t.weight()),
                     NoteStatus::Missed => Some(0.0),
@@ -396,7 +416,7 @@ impl Performance {
         song.iter()
             .filter(|(id, n)| {
                 self.statuses[id.0] == NoteStatus::Pending
-                    && self.hands.includes(n.hand)
+                    && self.owns(n)
                     && (n.start.0 - time.0).abs() <= HIT_WINDOW.0
             })
             .min_by_key(|(_, n)| (i16::from(n.pitch.value()) - i16::from(pitch.value())).abs())
@@ -409,7 +429,7 @@ impl Performance {
             .iter()
             .filter(|(id, n)| {
                 n.pitch == pitch
-                    && self.hands.includes(n.hand)
+                    && self.owns(n)
                     && self.statuses[id.0] == NoteStatus::Pending
                     && (n.start.0 - time.0).abs() <= HIT_WINDOW.0
             })

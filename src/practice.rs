@@ -46,6 +46,11 @@ impl LoopRegion {
         Self { start, end }
     }
 
+    /// Whether `time` falls in the region (start included, end not).
+    pub fn contains(self, time: Seconds) -> bool {
+        time >= self.start && time < self.end
+    }
+
     /// 1-based number of the first bar.
     pub fn first_bar(self, tempo: Tempo) -> u32 {
         (self.start.0 / tempo.bar_length().0).round() as u32 + 1

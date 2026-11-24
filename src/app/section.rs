@@ -82,7 +82,10 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                toggle.in_set(Phase::Simulate).before(advance),
+                (toggle, sync_focus)
+                    .chain()
+                    .in_set(Phase::Simulate)
+                    .before(advance),
                 wrap.in_set(Phase::Simulate).after(advance),
                 show_highlight.in_set(Phase::Present),
             ),
@@ -130,6 +133,15 @@ fn toggle(
             })
         }
     };
+}
+
+/// While a section loops, only its notes are the player's; the computer
+/// plays the warm-up before it and anything after it.
+fn sync_focus(section: Res<SectionLoop>, mut judge: ResMut<Judge>) {
+    let wanted = section.0.as_ref().map(|looping| looping.region);
+    if judge.0.focus() != wanted {
+        judge.0.set_focus(wanted);
+    }
 }
 
 fn wrap(

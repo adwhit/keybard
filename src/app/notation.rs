@@ -7,6 +7,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy::mesh::PrimitiveTopology;
 use bevy::prelude::*;
 
+use super::section::SectionLoop;
 use super::songs::{SongLoad, SongScoped};
 use super::transport::Transport;
 use super::{ActiveSong, Judge, Phase, palette};
@@ -89,6 +90,7 @@ struct HeadMaterials {
     played: Handle<ColorMaterial>,
     right: Handle<ColorMaterial>,
     left: Handle<ColorMaterial>,
+    context: Handle<ColorMaterial>,
 }
 
 impl HeadMaterials {
@@ -224,6 +226,7 @@ fn create_head_assets(
         played: materials.add(palette::PLAYED_INK),
         right: materials.add(palette::hand(Hand::Right)),
         left: materials.add(palette::hand(Hand::Left)),
+        context: materials.add(palette::DRILL_CONTEXT),
     });
 }
 
@@ -325,6 +328,7 @@ fn update_heads(
     song: Res<ActiveSong>,
     judge: Res<Judge>,
     materials: Res<HeadMaterials>,
+    section: Res<SectionLoop>,
 ) {
     let now = transport.time;
     heads
@@ -340,7 +344,14 @@ fn update_heads(
             let (clef, position) = head_position(&song.0, note);
             transform.translation.x = x;
             transform.translation.y = staff::y(clef, position);
-            let wanted = if note.is_sounding_at(now) {
+            let around_drill = section
+                .0
+                .as_ref()
+                .is_some_and(|looping| !looping.region.contains(note.start));
+            let wanted = if around_drill {
+                // Warm-up and tail of a drilled section, as on the bars.
+                materials.context.clone()
+            } else if note.is_sounding_at(now) {
                 materials.for_hand(note.hand)
             } else {
                 match judge.0.status(head.0) {
