@@ -456,7 +456,7 @@ fn spawn_card(
                 row.spawn(button(Control::OpenMenu, "Start screen", 16.0));
             });
             card.spawn(text(
-                "Space plays again | F3 drills | PgDn next song | Esc start screen",
+                "Play a button's chord to press it | Space plays again | Esc start screen",
                 12.0,
                 palette::HUD_DIM,
             ));

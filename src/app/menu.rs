@@ -232,7 +232,7 @@ fn spawn_screen(mut commands: Commands) {
                 ],
             ),
             label_text(
-                "Enter starts  |  Esc during a song comes back here  |  Esc here quits",
+                "Play a button's chord to press it  |  Enter starts  |  Esc quits",
                 12.0,
             ),
         ],

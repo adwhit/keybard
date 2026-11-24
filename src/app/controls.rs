@@ -4,9 +4,15 @@
 //! Systems react to [`Control`] rather than to raw keys, so a mouse click and
 //! its shortcut always do the same thing.
 
+use std::collections::HashSet;
+
 use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
+use tracing::info;
 
+use super::input::{KeyEdge, NoteInput};
+use crate::chord_keys::ChordKey;
+use crate::music::{MidiNote, PitchClass};
 use crate::performance::{Hands, PlayMode};
 
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +70,32 @@ impl Control {
             | Self::SelectSong(_)
             | Self::OpenMenu
             | Self::Quit => return None,
+        })
+    }
+
+    /// The chord that presses this command's button, if it has one. Buttons
+    /// shown together never share a chord. Quit has none, so it can't be
+    /// played by accident.
+    pub fn chord(self) -> Option<ChordKey> {
+        use PitchClass as P;
+        Some(match self {
+            // Navigation: the C major family.
+            Self::StartSong | Self::TogglePlay => ChordKey::major(P::C),
+            Self::NextSong => ChordKey::major(P::G),
+            Self::ToggleLoop => ChordKey::major(P::F),
+            Self::OpenMenu => ChordKey::minor(P::A),
+            Self::SetMode(PlayMode::Listen) => ChordKey::major(P::D),
+            Self::SetMode(PlayMode::Wait) => ChordKey::major(P::E),
+            Self::SetMode(PlayMode::Play) => ChordKey::major(P::A),
+            Self::SetHands(Hands::Both) => ChordKey::minor(P::D),
+            Self::SetHands(Hands::Right) => ChordKey::minor(P::E),
+            Self::SetHands(Hands::Left) => ChordKey::minor(P::B),
+            Self::ToggleSightReading => ChordKey::major(P::ASharp),
+            Self::ToggleMetronome => ChordKey::major(P::DSharp),
+            Self::CycleLabels => ChordKey::major(P::GSharp),
+            Self::ToggleAchievements => ChordKey::major(P::CSharp),
+            Self::SelectSong(i) => return SONG_CHORDS.get(i).copied(),
+            _ => return None,
         })
     }
 
@@ -141,6 +173,18 @@ impl Control {
     ];
 }
 
+/// Song buttons, in playlist order: minor chords not used elsewhere.
+const SONG_CHORDS: [ChordKey; 8] = [
+    ChordKey::minor(PitchClass::C),
+    ChordKey::minor(PitchClass::G),
+    ChordKey::minor(PitchClass::F),
+    ChordKey::minor(PitchClass::FSharp),
+    ChordKey::minor(PitchClass::CSharp),
+    ChordKey::minor(PitchClass::GSharp),
+    ChordKey::minor(PitchClass::DSharp),
+    ChordKey::minor(PitchClass::ASharp),
+];
+
 /// Extra keys that also trigger a command.
 const ALIASES: [(KeyCode, Control); 2] = [
     (KeyCode::BracketLeft, Control::Slower),
@@ -157,8 +201,55 @@ pub struct ReadControls;
 
 pub fn plugin(app: &mut App) {
     app.add_message::<Control>()
-        .add_systems(Update, keyboard.in_set(ReadControls))
+        .init_resource::<ChordHand>()
+        .add_systems(Update, (keyboard, chords).in_set(ReadControls))
         .add_observer(clicked);
+}
+
+/// Notes held for chord shortcuts, and whether the current chord has
+/// already pressed something.
+#[derive(Resource, Debug, Default)]
+struct ChordHand {
+    held: HashSet<MidiNote>,
+    fired: bool,
+}
+
+/// Playing a visible button's chord presses it, once per chord: let go of
+/// every key before it can fire again. Hidden buttons (e.g. everything
+/// while a song plays) never match, so chords mid-song are just notes.
+fn chords(
+    mut inputs: MessageReader<NoteInput>,
+    buttons: Query<(&ControlButton, &InheritedVisibility)>,
+    mut hand: ResMut<ChordHand>,
+    mut out: MessageWriter<Control>,
+) {
+    let mut struck = false;
+    inputs.read().for_each(|input| match input.edge {
+        KeyEdge::Down => {
+            hand.held.insert(input.note);
+            struck = true;
+        }
+        KeyEdge::Up => {
+            hand.held.remove(&input.note);
+        }
+    });
+    if hand.held.is_empty() {
+        hand.fired = false;
+    }
+    if !struck || hand.fired {
+        return;
+    }
+    let held: Vec<MidiNote> = hand.held.iter().copied().collect();
+    let pressed = buttons
+        .iter()
+        .filter(|(_, visible)| visible.get())
+        .map(|(button, _)| button.0)
+        .find(|control| control.chord().is_some_and(|c| c.matches(&held)));
+    if let Some(control) = pressed {
+        info!(?control, "chord pressed a button");
+        out.write(control);
+        hand.fired = true;
+    }
 }
 
 fn keyboard(keys: Res<ButtonInput<KeyCode>>, mut out: MessageWriter<Control>) {

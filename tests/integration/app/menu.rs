@@ -190,3 +190,97 @@ fn every_command_has_a_stable_id_for_the_menu_bar() {
         .for_each(|c| assert_eq!(Control::from_id(&c.id()), Some(c), "{}", c.id()));
     assert_eq!(Control::from_id("nonsense"), None);
 }
+
+/// Hold `pitches` down on the MIDI keyboard, then let go.
+fn play_chord(h: &mut Harness, pitches: &[u8]) {
+    pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Down));
+    h.frames(2);
+    pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Up));
+    h.frames(2);
+}
+
+fn visible_chords(h: &mut Harness) -> Vec<String> {
+    let mut q = h.world().query::<(&ControlButton, &InheritedVisibility)>();
+    q.iter(h.app.world())
+        .filter(|(_, v)| v.get())
+        .filter_map(|(b, _)| b.0.chord().map(|c| c.label()))
+        .collect()
+}
+
+#[test]
+fn every_visible_button_has_its_own_chord_shown_on_it() {
+    let mut h = on_start_screen();
+    // Song rows (and so their badges) arrive once the titles are loaded.
+    h.frames(2);
+    let chords = visible_chords(&mut h);
+    assert!(chords.len() > 10, "{chords:?}");
+    let mut unique = chords.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), chords.len(), "no two buttons share a chord");
+    // Each chord is drawn on its button.
+    let texts = h.ui_texts();
+    chords
+        .iter()
+        .for_each(|c| assert!(texts.contains(c), "{c} badge"));
+    assert_eq!(Control::StartSong.chord().unwrap().label(), "C");
+}
+
+#[test]
+fn playing_a_chord_presses_its_button() {
+    let mut h = on_start_screen();
+    let fur_elise = Control::SelectSong(2).chord().unwrap();
+    let pitches: Vec<u8> = fur_elise
+        .pitch_classes()
+        .iter()
+        .map(|pc| 60 + pc.semitone())
+        .collect();
+    play_chord(&mut h, &pitches);
+    assert!(
+        h.world()
+            .resource::<ActiveSong>()
+            .0
+            .title
+            .starts_with("Fur Elise")
+    );
+    // C major (in second inversion) starts it.
+    play_chord(&mut h, &[55, 60, 64]);
+    assert_eq!(screen(&mut h), Screen::Song);
+    assert_eq!(h.transport().state, PlayState::Playing);
+}
+
+#[test]
+fn chords_do_nothing_while_the_music_plays() {
+    let mut h = on_start_screen();
+    h.click(Control::SetMode(PlayMode::Play));
+    h.click(Control::StartSong);
+    h.frames(10);
+    // A C chord mid-song is just notes, not "Play again" or "Start".
+    play_chord(&mut h, &[60, 64, 67]);
+    assert_eq!(h.transport().state, PlayState::Playing);
+    assert_eq!(screen(&mut h), Screen::Song);
+}
+
+#[test]
+fn a_held_chord_presses_once() {
+    use keybard::app::falling::View;
+    let mut h = on_start_screen();
+    let toggle = Control::ToggleSightReading.chord().unwrap();
+    let pitches: Vec<u8> = toggle
+        .pitch_classes()
+        .iter()
+        .map(|pc| 60 + pc.semitone())
+        .collect();
+    pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Down));
+    h.frames(2);
+    assert_eq!(*h.world().resource::<View>(), View::SightReading);
+    // Re-strike one note while still holding the rest: no second toggle.
+    h.midi(pitches[1], KeyEdge::Up);
+    h.midi(pitches[1], KeyEdge::Down);
+    h.frames(2);
+    assert_eq!(*h.world().resource::<View>(), View::SightReading);
+    // Let go completely, and the chord works again.
+    pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Up));
+    play_chord(&mut h, &pitches);
+    assert_eq!(*h.world().resource::<View>(), View::Bars);
+}

@@ -4,6 +4,7 @@ pub mod achievements;
 pub mod app;
 pub mod builtin;
 pub mod challenge;
+pub mod chord_keys;
 pub mod chords;
 pub mod dynamics;
 pub mod error;

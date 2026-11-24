@@ -43,6 +43,13 @@ screen anyway). Everything can be driven with the mouse: the results card has
 buttons, and on macOS the menu bar has keybard, Song, Play, Mode, View and
 Window menus covering every keyboard shortcut.
 
+Buttons can also be pressed by playing a chord, so you never need to leave
+the piano: each one shows its chord in a small gold badge (Start and Play
+again are C, Next song G, Drill F, Start screen Am; songs, modes, hands and
+options have their own). Any octave or inversion works, from a MIDI keyboard
+or the computer keys; release everything before the next chord. Chords only
+press buttons that are on screen, so mid-song they're just notes.
+
 Built-in songs: `ode-to-joy`, `twinkle`, `scale`, `fur-elise` (the opening),
 `minuet` (Minuet in G, simplified) and `jingle-bells` (the chorus). Any Standard MIDI File
 works too: with two or more note tracks the first is the right hand, and with a
@@ -276,6 +283,7 @@ Layout:
 - `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
 - `src/glyph.rs`: treble and bass clefs as filled broad-nib pen strokes
+- `src/chord_keys.rs`: triads as button shortcuts (any octave or inversion)
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
   notation, HUD, effects, results, autopilot, generated textures and
   offscreen snapshots

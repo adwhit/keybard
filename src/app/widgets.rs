@@ -9,10 +9,12 @@ use super::songs::Playlist;
 use super::transport::{Metronome, Transport};
 use super::{Judge, Phase, palette};
 
-/// A button sending `control`, with a text label.
+/// A button sending `control`, with a text label and, if the command has a
+/// chord shortcut, a badge naming it.
 pub fn button(control: Control, label: impl Into<String>, size: f32) -> impl Bundle {
     (
         ControlButton(control),
+        ChordBadges(control.chord().map(|c| c.label())),
         PickingInteraction::default(),
         Node {
             padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
@@ -26,6 +28,41 @@ pub fn button(control: Control, label: impl Into<String>, size: f32) -> impl Bun
         BorderColor::all(palette::BUTTON_BORDER),
         children![label_text(label, size)],
     )
+}
+
+/// The chord to badge a button with, added once the button exists.
+#[derive(Component, Debug, Clone)]
+struct ChordBadges(Option<String>);
+
+/// The little chord name in a button's corner.
+#[derive(Component, Debug)]
+pub struct ChordBadge;
+
+/// Badges go on as soon as a button exists, so no frame shows it bare.
+fn add_badge(added: On<Add<ChordBadges>>, badges: Query<&ChordBadges>, mut commands: Commands) {
+    let button = added.entity;
+    if let Ok(ChordBadges(Some(chord))) = badges.get(button) {
+        commands.entity(button).with_child((
+            ChordBadge,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(-7.0),
+                right: Val::Px(-7.0),
+                padding: UiRect::axes(Val::Px(4.0), Val::Px(0.0)),
+                border_radius: BorderRadius::all(Val::Px(3.0)),
+                ..default()
+            },
+            BackgroundColor(palette::CHORD_BADGE),
+            children![(
+                Text::new(chord.clone()),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(palette::DARK_INK),
+            )],
+        ));
+    }
 }
 
 pub fn label_text(value: impl Into<String>, size: f32) -> impl Bundle {
@@ -74,7 +111,8 @@ impl Settings {
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Update, style_buttons.in_set(Phase::Present));
+    app.add_observer(add_badge)
+        .add_systems(Update, style_buttons.in_set(Phase::Present));
 }
 
 fn style_buttons(
