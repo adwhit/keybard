@@ -1,5 +1,9 @@
 //! Triads: as shortcuts that "press" a button when played (in any octave
 //! or inversion), and as pages of the chord book.
+//!
+//! The book holds only major and minor triads, so the book's own buttons
+//! use sus4 and diminished chords: playing a page (or a flash card) can
+//! never press one.
 
 use crate::music::{MidiNote, PitchClass};
 
@@ -7,6 +11,22 @@ use crate::music::{MidiNote, PitchClass};
 pub enum Triad {
     Major,
     Minor,
+    /// A fourth in place of the third: C F G.
+    Sus4,
+    /// A minor third and a flattened fifth: B D F.
+    Diminished,
+}
+
+impl Triad {
+    /// Semitones above the root.
+    const fn intervals(self) -> [u8; 3] {
+        match self {
+            Self::Major => [0, 4, 7],
+            Self::Minor => [0, 3, 7],
+            Self::Sus4 => [0, 5, 7],
+            Self::Diminished => [0, 3, 6],
+        }
+    }
 }
 
 /// A major or minor triad on a root.
@@ -40,21 +60,52 @@ impl ChordKey {
         }
     }
 
-    pub fn pitch_classes(self) -> [PitchClass; 3] {
-        let third = match self.triad {
-            Triad::Major => 4,
-            Triad::Minor => 3,
-        };
-        let root = self.root.semitone();
-        [0, third, 7].map(|interval| PitchClass::from_semitone((root + interval) % 12))
+    pub const fn sus4(root: PitchClass) -> Self {
+        Self {
+            root,
+            triad: Triad::Sus4,
+        }
     }
 
+    pub const fn diminished(root: PitchClass) -> Self {
+        Self {
+            root,
+            triad: Triad::Diminished,
+        }
+    }
+
+    pub fn pitch_classes(self) -> [PitchClass; 3] {
+        let root = self.root.semitone();
+        self.triad
+            .intervals()
+            .map(|interval| PitchClass::from_semitone((root + interval) % 12))
+    }
+
+    /// The chord symbol: "C", "F#m", "Csus4", "Bdim".
     pub fn label(self) -> String {
-        let names = match self.triad {
-            Triad::Major => MAJOR_NAMES,
-            Triad::Minor => MINOR_NAMES,
-        };
-        names[usize::from(self.root.semitone())].to_owned()
+        let root = usize::from(self.root.semitone());
+        match self.triad {
+            Triad::Major => MAJOR_NAMES[root].to_owned(),
+            Triad::Minor => MINOR_NAMES[root].to_owned(),
+            Triad::Sus4 => format!("{}sus4", MAJOR_NAMES[root]),
+            Triad::Diminished => format!("{}dim", MAJOR_NAMES[root]),
+        }
+    }
+
+    /// The name in words: "C major", "F# minor".
+    pub fn name(self) -> String {
+        let label = self.label();
+        match self.triad {
+            Triad::Major => format!("{label} major"),
+            Triad::Minor => format!("{} minor", label.trim_end_matches('m')),
+            Triad::Sus4 => format!("{} suspended fourth", label.trim_end_matches("sus4")),
+            Triad::Diminished => format!("{} diminished", label.trim_end_matches("dim")),
+        }
+    }
+
+    /// The book's chord that the held notes are, if any.
+    pub fn in_book(held: &[MidiNote]) -> Option<Self> {
+        BOOK.iter().copied().find(|chord| chord.matches(held))
     }
 
     /// Whether this chord is written with flats (Bb, Eb, ...) rather than
@@ -67,6 +118,7 @@ impl ChordKey {
                 P::F | P::ASharp | P::DSharp | P::GSharp | P::CSharp
             ),
             Triad::Minor => matches!(self.root, P::D | P::G | P::C | P::F | P::ASharp | P::DSharp),
+            Triad::Sus4 | Triad::Diminished => false,
         }
     }
 
@@ -85,12 +137,22 @@ impl ChordKey {
 
     /// The notes from the bottom up in `inversion`.
     pub fn voicing(self, inversion: Inversion) -> [&'static str; 3] {
-        let [root, third, fifth] = self.note_names();
-        match inversion {
-            Inversion::Root => [root, third, fifth],
-            Inversion::First => [third, fifth, root],
-            Inversion::Second => [fifth, root, third],
-        }
+        inversion.arrange(self.note_names())
+    }
+
+    /// The keys of this chord in `inversion`, bottom note from G3 up to F#4
+    /// (so root-position chords sit around middle C).
+    pub fn keys(self, inversion: Inversion) -> Vec<MidiNote> {
+        let order = inversion.arrange(self.pitch_classes().map(|pc| pc.semitone()));
+        // The first `pc` key above `base` (or `base` itself).
+        let above = |base: u8, pc: u8| base + (pc + 12 - base % 12) % 12;
+        let low = above(55, order[0]);
+        let middle = above(low + 1, order[1]);
+        let top = above(middle + 1, order[2]);
+        [low, middle, top]
+            .into_iter()
+            .filter_map(|v| MidiNote::new(v).ok())
+            .collect()
     }
 
     /// Which inversion the held notes are, if they're this chord: told by
@@ -127,6 +189,15 @@ pub enum Inversion {
 
 impl Inversion {
     pub const ALL: [Self; 3] = [Self::Root, Self::First, Self::Second];
+
+    /// Root, third and fifth reordered from the bottom up.
+    pub fn arrange<T>(self, [root, third, fifth]: [T; 3]) -> [T; 3] {
+        match self {
+            Self::Root => [root, third, fifth],
+            Self::First => [third, fifth, root],
+            Self::Second => [fifth, root, third],
+        }
+    }
 
     pub fn label(self) -> &'static str {
         match self {

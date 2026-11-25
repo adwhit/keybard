@@ -43,6 +43,8 @@ pub enum Control {
     OpenMenu,
     /// The chord book (from the start screen).
     OpenChordBook,
+    /// Flash cards of the chords cleared in the chord book.
+    StartDrill,
     /// The players screen (from the start screen).
     OpenPlayers,
     /// Switch to the player at this index in the players list.
@@ -75,7 +77,8 @@ impl Control {
             Self::CycleLabels => KeyCode::F1,
             Self::PreviousSong => KeyCode::PageUp,
             Self::NextSong => KeyCode::PageDown,
-            Self::StartSong => KeyCode::Enter,
+            // Enter is "go": each screen reads only its own.
+            Self::StartSong | Self::StartDrill => KeyCode::Enter,
             Self::Back => KeyCode::Escape,
             Self::SetMode(_)
             | Self::SetHands(_)
@@ -112,6 +115,11 @@ impl Control {
             Self::ToggleMidiEcho => ChordKey::major(P::FSharp),
             Self::OpenChordBook => ChordKey::major(P::G),
             Self::OpenPlayers => ChordKey::major(P::B),
+            // The chord book: chords no page (and no flash card) is.
+            Self::SeekBack => ChordKey::sus4(P::G),
+            Self::SeekForward => ChordKey::sus4(P::C),
+            Self::StartDrill => ChordKey::sus4(P::D),
+            Self::Back => ChordKey::diminished(P::B),
             Self::SelectPlayer(i) => return PLAYER_CHORDS.get(i).copied(),
             Self::SelectSong(i) => return SONG_CHORDS.get(i).copied(),
             _ => return None,
@@ -152,7 +160,7 @@ impl Control {
     }
 
     /// Every command without a parameter.
-    const PLAIN: [Self; 23] = [
+    const PLAIN: [Self; 24] = [
         Self::TogglePlay,
         Self::Restart,
         Self::SeekBack,
@@ -167,6 +175,7 @@ impl Control {
         Self::ToggleSightReading,
         Self::ToggleMidiEcho,
         Self::OpenChordBook,
+        Self::StartDrill,
         Self::CycleLabels,
         Self::PreviousSong,
         Self::NextSong,
@@ -179,7 +188,7 @@ impl Control {
     ];
 
     /// Commands bound to a key, for mapping key presses.
-    const SHORTCUTS: [Self; 19] = [
+    const SHORTCUTS: [Self; 20] = [
         Self::TogglePlay,
         Self::Restart,
         Self::SeekBack,
@@ -198,6 +207,7 @@ impl Control {
         Self::PreviousSong,
         Self::NextSong,
         Self::StartSong,
+        Self::StartDrill,
         Self::Back,
     ];
 }

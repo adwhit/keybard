@@ -78,3 +78,88 @@ mod book {
         assert_eq!(Inversion::First.label(), "first inversion");
     }
 }
+
+mod controls {
+    use keybard::chord_keys::{BOOK, ChordKey};
+    use keybard::music::PitchClass;
+
+    use super::notes;
+
+    #[test]
+    fn sus4_and_diminished_chords_match_their_own_notes() {
+        let csus4 = ChordKey::sus4(PitchClass::C);
+        assert!(csus4.matches(&notes(&[60, 65, 67])), "C F G");
+        assert!(csus4.matches(&notes(&[53, 55, 60])), "any inversion");
+        assert!(
+            !csus4.matches(&notes(&[60, 64, 67])),
+            "C major is not Csus4"
+        );
+        let bdim = ChordKey::diminished(PitchClass::B);
+        assert!(bdim.matches(&notes(&[59, 62, 65])), "B D F");
+        assert_eq!(csus4.label(), "Csus4");
+        assert_eq!(bdim.label(), "Bdim");
+    }
+
+    #[test]
+    fn no_book_page_is_a_sus4_or_diminished_chord() {
+        let others = [
+            ChordKey::sus4(PitchClass::C),
+            ChordKey::sus4(PitchClass::G),
+            ChordKey::sus4(PitchClass::D),
+            ChordKey::diminished(PitchClass::B),
+        ];
+        others.iter().for_each(|other| {
+            let held = other
+                .pitch_classes()
+                .map(|pc| keybard::music::MidiNote::new(60 + pc.semitone()).unwrap());
+            assert!(
+                BOOK.iter().all(|page| !page.matches(&held)),
+                "{} is in the book",
+                other.label()
+            );
+        });
+    }
+}
+
+mod names {
+    use keybard::chord_keys::{BOOK, ChordKey, Inversion};
+    use keybard::music::PitchClass;
+
+    use super::notes;
+
+    #[test]
+    fn chords_have_full_names() {
+        assert_eq!(ChordKey::major(PitchClass::C).name(), "C major");
+        assert_eq!(ChordKey::minor(PitchClass::FSharp).name(), "F# minor");
+        assert_eq!(ChordKey::diminished(PitchClass::B).name(), "B diminished");
+    }
+
+    #[test]
+    fn keys_are_the_voicing_around_middle_c() {
+        let c = ChordKey::major(PitchClass::C);
+        assert_eq!(c.keys(Inversion::Root), notes(&[60, 64, 67]));
+        assert_eq!(c.keys(Inversion::First), notes(&[64, 67, 72]));
+        assert_eq!(c.keys(Inversion::Second), notes(&[55, 60, 64]));
+        let am = ChordKey::minor(PitchClass::A);
+        assert_eq!(am.keys(Inversion::Root), notes(&[57, 60, 64]));
+        BOOK.iter().for_each(|chord| {
+            Inversion::ALL.iter().for_each(|inversion| {
+                let keys = chord.keys(*inversion);
+                assert_eq!(
+                    chord.inversion(&keys),
+                    Some(*inversion),
+                    "{}",
+                    chord.label()
+                );
+                assert!(keys.windows(2).all(|w| w[0] < w[1]));
+            });
+        });
+    }
+
+    #[test]
+    fn the_book_page_of_a_chord_is_found() {
+        assert_eq!(ChordKey::in_book(&notes(&[57, 60, 64])), Some(BOOK[1]));
+        assert_eq!(ChordKey::in_book(&notes(&[59, 62, 65])), None, "Bdim");
+        assert_eq!(ChordKey::in_book(&notes(&[60, 64])), None);
+    }
+}

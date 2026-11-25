@@ -318,6 +318,7 @@ fn playlist_harness(mode: PlayMode) -> Harness {
 }
 
 mod book;
+mod drill;
 mod menu;
 mod playback;
 mod players;
