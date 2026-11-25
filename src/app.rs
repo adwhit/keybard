@@ -13,6 +13,7 @@ pub mod book;
 pub mod controls;
 pub mod effects;
 pub mod falling;
+mod fonts;
 pub mod heat;
 pub mod hud;
 pub mod input;
@@ -21,6 +22,7 @@ pub mod menu;
 mod menubar;
 pub mod notation;
 pub mod palette;
+pub mod pause;
 pub mod piano;
 pub mod players;
 pub mod practice;
@@ -274,6 +276,7 @@ pub fn build(options: Options) -> App {
         )
         .add_systems(Startup, spawn_camera)
         .add_plugins((
+            fonts::plugin,
             controls::plugin,
             textures::plugin,
             effects::plugin,
@@ -301,6 +304,7 @@ pub fn build(options: Options) -> App {
         ))
         .add_plugins((
             menu::plugin(options.screen),
+            pause::plugin,
             widgets::plugin,
             book::plugin,
             players::plugin(profile),

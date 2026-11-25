@@ -99,10 +99,7 @@ fn spawn_screen(mut commands: Commands) {
         children![
             (
                 Text::new("WHO'S PLAYING?"),
-                TextFont {
-                    font_size: FontSize::Px(40.0),
-                    ..default()
-                },
+                super::fonts::bold(40.0),
                 TextColor(palette::timing(Timing::Perfect)),
             ),
             label_text(

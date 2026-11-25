@@ -135,7 +135,7 @@ fn chasing_a_best_counts_down_then_celebrates() {
     assert_eq!(chase(1200, Some(best)), Chase::Ahead { by: 200 });
     assert_eq!(
         chase(300, Some(best)).label(),
-        Some("best 1000 | 700 to go".to_owned())
+        Some("best 1000 · 700 to go".to_owned())
     );
     assert_eq!(
         chase(1200, Some(best)).label(),

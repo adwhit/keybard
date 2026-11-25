@@ -352,9 +352,11 @@ fn show_end_card(
 fn text(value: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     (
         Text::new(value),
-        TextFont {
-            font_size: FontSize::Px(size),
-            ..default()
+        // Headings and big numbers in bold, the rest regular.
+        if size >= 20.0 {
+            super::fonts::bold(size)
+        } else {
+            super::fonts::regular(size)
         },
         TextColor(color),
     )
@@ -380,7 +382,7 @@ fn spawn_card(
             format!("NEW BEST!  +{}", score.points.saturating_sub(p.points))
         }
         (Submission::NewBest { previous: None }, _) => "FIRST CLEAR!".to_owned(),
-        (Submission::NotBest { best }, _) => format!("best {:07}", best.points),
+        (Submission::NotBest { best }, _) => format!("best {}", best.points),
         (Submission::Unscored, _) => String::new(),
     };
     let full_combo = if score.is_full_combo() {
@@ -442,14 +444,10 @@ fn spawn_card(
                 }
                 ChallengeOutcome::NotMet => {}
             }
-            card.spawn(text(
-                format!("{:07}", score.points),
-                36.0,
-                palette::HUD_TEXT,
-            ));
+            card.spawn(text(format!("{}", score.points), 36.0, palette::HUD_TEXT));
             card.spawn(text(banner, 18.0, palette::timing(Timing::Great)));
             card.spawn(text(
-                format!("{accuracy}  |  max combo {}", score.max_combo),
+                format!("{accuracy}  ·  max combo {}", score.max_combo),
                 15.0,
                 palette::HUD_TEXT,
             ));
@@ -475,7 +473,7 @@ fn spawn_card(
             });
             let advice = match result.weakest {
                 Some(first) => format!(
-                    "Weakest: bars {first}-{}  |  F3 to drill them",
+                    "Weakest: bars {first}-{}  ·  F3 to drill them",
                     first + u32::from(LOOP_BARS) - 1
                 ),
                 None => "Every bar perfect!".to_owned(),
@@ -486,7 +484,7 @@ fn spawn_card(
             });
             card.spawn(text(
                 format!(
-                    "{} | {} min practised today",
+                    "{} · {} min practised today",
                     practice.streak_label(),
                     practice.minutes_today()
                 ),

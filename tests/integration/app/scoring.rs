@@ -207,7 +207,7 @@ fn the_hud_chases_your_personal_best_live() {
     assert!(
         h.ui_texts()
             .iter()
-            .any(|t| t.contains("best 400 | 400 to go")),
+            .any(|t| t.contains("best 400 · 400 to go")),
         "{:?}",
         h.ui_texts()
     );
@@ -680,7 +680,7 @@ fn the_hud_says_when_midi_notes_are_muted() {
     h.tap(KeyCode::F7);
     h.frames(1);
     assert!(
-        h.ui_texts().iter().any(|t| t.contains("MIDI notes muted")),
+        h.ui_texts().iter().any(|t| t == "MIDI muted"),
         "{:?}",
         h.ui_texts()
     );

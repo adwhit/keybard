@@ -110,7 +110,7 @@ impl Chase {
     pub fn label(self) -> Option<String> {
         match self {
             Self::NoBest => None,
-            Self::Behind { best, to_go } => Some(format!("best {best} | {to_go} to go")),
+            Self::Behind { best, to_go } => Some(format!("best {best} · {to_go} to go")),
             Self::Ahead { by } => Some(format!("best beaten by {by}!")),
         }
     }

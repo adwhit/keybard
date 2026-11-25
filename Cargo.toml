@@ -35,7 +35,7 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "bevy_sprite_render",
     "bevy_gizmos_render",
     "bevy_text",
-    "default_font",
+    # (Fira Sans is embedded by src/app/fonts.rs instead of the default mono)
     "bevy_ui_render",
     # Clicking buttons
     "bevy_picking",

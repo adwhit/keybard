@@ -12,16 +12,40 @@ use super::results::Bests;
 use super::section::SectionLoop;
 use super::songs::SongScoped;
 use super::transport::{Metronome, PlayState, Transport};
-use super::{ActiveSong, Feedback, Judge, Phase, palette};
+use super::widgets::capitalise;
+use super::{ActiveSong, Feedback, Judge, Phase, fonts, palette};
 use crate::layout;
 use crate::performance::{Judgement, Timing};
 use crate::records::{self, Best, Chase, RecordKey};
 
-#[derive(Component)]
-struct InfoText;
+/// The text lines of the song card.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+enum InfoLine {
+    Title,
+    Clock,
+    /// Streak, practice today and the MIDI keyboard.
+    Meta,
+    /// The loop being drilled and how the last pass went.
+    Loop,
+}
 
+/// Tags under the title: mode, hands, speed and whatever else is on.
 #[derive(Component)]
-struct ScoreText;
+struct Chips;
+
+/// The card on the right: score, multiplier, accuracy and the chase.
+#[derive(Component)]
+struct ScoreCard;
+
+/// The lines of the score card.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+enum ScoreLine {
+    Points,
+    Multiplier,
+    Accuracy,
+    /// How far behind (or ahead of) the personal best.
+    Chase,
+}
 
 #[derive(Component)]
 struct ComboText;
@@ -32,7 +56,7 @@ struct TimingText;
 #[derive(Component)]
 struct ProgressFill;
 
-/// Key help, shown before the music starts and while paused.
+/// How to play and pause, shown before the music starts.
 #[derive(Component)]
 pub struct HelpText;
 
@@ -49,14 +73,16 @@ struct Display {
     last_age: f32,
 }
 
-const HELP: &str = "Space play/pause | Left/Right seek | Up/Down speed | Tab mode | F2 hands | F3 loop 4 bars | F4 metronome | F5 achievements | F6 sight-reading | PgUp/PgDn song | Backspace restart | F1 labels | Esc quit\n\
-Play with Z S X D C V... and Q 2 W 3 E R... | -/= shift octave | or a MIDI keyboard";
+const HELP: &str = "Hold C C# D together to pause  ·  Space works too\n\
+Play on a MIDI keyboard, or Z S X D C V… and Q 2 W 3 E R… (-/= shift octave)";
 
 const STRIP_HEIGHT: f32 = 5.0;
 const STRIP_Z: f32 = 6.0;
 const COMBO_Z: f32 = 0.5;
 /// Combos shorter than this aren't worth shouting about.
 const MIN_SHOWN_COMBO: u32 = 3;
+/// Where the HUD cards sit: just under the notation.
+const CARD_TOP: Val = Val::Percent(31.5);
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<Display>()
@@ -65,6 +91,7 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 update_info,
+                update_chips,
                 update_score,
                 best_beaten,
                 update_combo,
@@ -77,66 +104,129 @@ pub fn plugin(app: &mut App) {
         );
 }
 
-fn font(size: f32) -> TextFont {
-    TextFont {
-        font_size: FontSize::Px(size),
-        ..default()
-    }
+/// A translucent card floating over the falling bars.
+fn card(node: Node) -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(4.0),
+            padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+            border_radius: BorderRadius::all(Val::Px(8.0)),
+            ..node
+        },
+        BackgroundColor(palette::PANEL.with_alpha(0.78)),
+    )
+}
+
+fn line(marker: impl Component, font: TextFont, color: Color) -> impl Bundle {
+    (marker, Text::new(""), font, TextColor(color))
 }
 
 fn spawn_hud(mut commands: Commands) {
-    let top = Val::Percent(31.0);
     commands.spawn((
-        InfoText,
-        Text::new(""),
-        font(13.0),
-        TextColor(palette::HUD_TEXT),
-        Node {
+        card(Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(8.0),
-            top,
+            left: Val::Px(10.0),
+            top: CARD_TOP,
+            max_width: Val::Percent(46.0),
             ..default()
-        },
+        }),
+        children![
+            line(InfoLine::Title, fonts::bold(18.0), palette::HUD_TEXT),
+            (
+                Chips,
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    column_gap: Val::Px(5.0),
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                },
+            ),
+            line(InfoLine::Clock, fonts::numbers(14.0), palette::HUD_TEXT),
+            line(InfoLine::Meta, fonts::regular(12.0), palette::HUD_DIM),
+            line(
+                InfoLine::Loop,
+                fonts::regular(12.0),
+                palette::LOOP_REGION.with_alpha(1.0)
+            ),
+        ],
     ));
     commands.spawn((
-        ScoreText,
-        Text::new(""),
-        font(26.0),
-        TextColor(palette::HUD_TEXT),
-        TextLayout::justify(Justify::Right),
-        Node {
+        ScoreCard,
+        card(Node {
             position_type: PositionType::Absolute,
             right: Val::Px(10.0),
-            top,
+            top: CARD_TOP,
+            align_items: AlignItems::End,
+            min_width: Val::Px(170.0),
             ..default()
-        },
+        }),
+        children![
+            line(ScoreLine::Points, fonts::numbers(34.0), palette::HUD_TEXT),
+            (
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(10.0),
+                    ..default()
+                },
+                children![
+                    (
+                        Node {
+                            padding: UiRect::axes(Val::Px(7.0), Val::Px(1.0)),
+                            border_radius: BorderRadius::all(Val::Px(9.0)),
+                            ..default()
+                        },
+                        BackgroundColor(palette::BUTTON),
+                        children![line(
+                            ScoreLine::Multiplier,
+                            fonts::numbers(14.0),
+                            palette::HUD_TEXT
+                        )],
+                    ),
+                    line(ScoreLine::Accuracy, fonts::numbers(16.0), palette::HUD_TEXT),
+                ],
+            ),
+            line(ScoreLine::Chase, fonts::regular(12.0), palette::HUD_DIM),
+        ],
     ));
     commands.spawn((
         HelpText,
-        Text::new(HELP),
-        font(10.0),
-        TextColor(palette::HUD_DIM.with_alpha(0.7)),
-        TextLayout::justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(0.0),
             right: Val::Px(0.0),
-            top: Val::Percent(66.0),
+            top: Val::Percent(64.0),
             justify_content: JustifyContent::Center,
             ..default()
         },
+        children![(
+            Node {
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(6.0)),
+                border_radius: BorderRadius::all(Val::Px(14.0)),
+                ..default()
+            },
+            BackgroundColor(palette::PANEL.with_alpha(0.8)),
+            children![(
+                Text::new(HELP),
+                fonts::regular(12.0),
+                TextColor(palette::HUD_DIM),
+                TextLayout::justify(Justify::Center),
+            )],
+        )],
     ));
     commands.spawn((
         ComboText,
         Text2d::new(""),
-        font(64.0),
+        fonts::numbers(64.0),
         TextColor(palette::HUD_TEXT.with_alpha(0.0)),
         Transform::from_xyz(0.0, 70.0, COMBO_Z),
     ));
     commands.spawn((
         TimingText,
         Text2d::new(""),
-        font(14.0),
+        fonts::regular(14.0),
         TextColor(palette::HUD_DIM),
         Transform::from_xyz(0.0, 18.0, COMBO_Z),
     ));
@@ -162,72 +252,114 @@ fn spawn_strip(mut commands: Commands) {
     ));
 }
 
-#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
+fn set(text: &mut Text, wanted: String) {
+    if text.0 != wanted {
+        text.0 = wanted;
+    }
+}
+
+fn clock(seconds: f32) -> String {
+    format!("{}:{:02}", (seconds / 60.0) as u32, (seconds % 60.0) as u32)
+}
+
+/// Song title, clock, practice and MIDI, and the loop.
 fn update_info(
-    mut text: Single<&mut Text, With<InfoText>>,
+    mut lines: Query<(&InfoLine, &mut Text)>,
     transport: Res<Transport>,
     song: Res<ActiveSong>,
-    judge: Res<Judge>,
     section: Res<SectionLoop>,
     practice: Res<Practice>,
-    metronome: Res<Metronome>,
     midi: Res<MidiStatus>,
-    echo: Res<MidiEcho>,
-    view: Res<View>,
 ) {
-    let state = match transport.state {
-        PlayState::Playing => "",
-        PlayState::Paused => "  PAUSED",
-        PlayState::Finished => "",
-    };
-    let elapsed = transport.time.0.max(0.0);
-    let total = song.0.duration().0;
-    let clock = |s: f32| format!("{}:{:02}", (s / 60.0) as u32, (s % 60.0) as u32);
-    text.0 = format!(
-        "{title}\n{mode} mode | {hands} | {speed:.0}% speed{click}{reading} | {elapsed} / {total}{state}",
-        title = song.0.title,
-        mode = transport.mode.label(),
-        hands = judge.0.hands().label(),
-        reading = match *view {
-            View::SightReading => " | sight-reading",
-            View::Bars => "",
-        },
-        click = match *metronome {
-            Metronome::On => " | metronome",
-            Metronome::Off => "",
-        },
-        speed = transport.speed.get() * 100.0,
-        elapsed = clock(elapsed),
-        total = clock(total),
-    );
-    text.0.push_str(&format!(
-        "\n{streak} | {minutes} min today | {midi}",
-        streak = practice.streak_label(),
-        minutes = practice.minutes_today(),
-        midi = match *echo {
-            MidiEcho::Play => midi.label(),
-            MidiEcho::Mute => format!("{} | MIDI notes muted (F7)", midi.label()),
-        }
-    ));
-    if let Some(looping) = &section.0 {
-        let tempo = song.0.tempo;
-        let first = looping.region.first_bar(tempo);
-        let last = first + looping.region.bars(tempo) - 1;
-        text.0.push_str(&format!(
-            "\nLOOP bars {first}-{last} | pass {pass}",
-            pass = looping.passes + 1
-        ));
-        if transport.mode.is_scored() {
-            text.0
-                .push_str(&format!(" | clean {}", looping.clean_passes));
-            if let Some(last) = looping.last_pass {
-                text.0.push_str(&format!(
-                    " | last: {} hit, {} missed, {} wrong",
-                    last.hits, last.missed, last.wrong
-                ));
+    let looping = || {
+        section.0.as_ref().map_or_else(String::new, |looping| {
+            let tempo = song.0.tempo;
+            let first = looping.region.first_bar(tempo);
+            let last = first + looping.region.bars(tempo) - 1;
+            let mut line = format!("Looping bars {first}-{last} · pass {}", looping.passes + 1);
+            if transport.mode.is_scored() {
+                line.push_str(&format!(" · {} clean", looping.clean_passes));
+                if let Some(pass) = looping.last_pass {
+                    line.push_str(&format!(
+                        " · last: {} hit, {} missed, {} wrong",
+                        pass.hits, pass.missed, pass.wrong
+                    ));
+                }
             }
-        }
+            line
+        })
+    };
+    lines.iter_mut().for_each(|(line, mut text)| {
+        let wanted = match line {
+            InfoLine::Title => song.0.title.clone(),
+            InfoLine::Clock => format!(
+                "{} / {}",
+                clock(transport.time.0.max(0.0)),
+                clock(song.0.duration().0)
+            ),
+            InfoLine::Meta => format!(
+                "{} · {} min today · {}",
+                practice.streak_label(),
+                practice.minutes_today(),
+                midi.label()
+            ),
+            InfoLine::Loop => looping(),
+        };
+        set(&mut text, wanted);
+    });
+}
+
+/// A rounded tag under the song title.
+fn chip(label: String, color: Color) -> impl Bundle {
+    (
+        Node {
+            padding: UiRect::axes(Val::Px(8.0), Val::Px(2.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: BorderRadius::all(Val::Px(10.0)),
+            ..default()
+        },
+        BackgroundColor(color.with_alpha(0.18)),
+        BorderColor::all(color.with_alpha(0.6)),
+        children![(Text::new(label), fonts::bold(11.0), TextColor(color))],
+    )
+}
+
+/// Rebuild the chips whenever what they say changes.
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
+fn update_chips(
+    mut commands: Commands,
+    chips: Single<Entity, With<Chips>>,
+    transport: Res<Transport>,
+    judge: Res<Judge>,
+    metronome: Res<Metronome>,
+    view: Res<View>,
+    echo: Res<MidiEcho>,
+    mut shown: Local<Vec<(String, Color)>>,
+) {
+    let accent = palette::timing(Timing::Perfect);
+    let plain = palette::HUD_TEXT;
+    let wanted: Vec<(String, Color)> = [
+        Some((transport.mode.label().to_uppercase(), accent)),
+        Some((capitalise(judge.0.hands().label()), plain)),
+        Some((format!("{:.0}%", transport.speed.get() * 100.0), plain)),
+        (*metronome == Metronome::On).then(|| ("Metronome".to_owned(), plain)),
+        (*view == View::SightReading).then(|| ("Sight-reading".to_owned(), plain)),
+        (*echo == MidiEcho::Mute).then(|| ("MIDI muted".to_owned(), plain)),
+        (transport.state == PlayState::Paused).then(|| ("PAUSED".to_owned(), palette::MISSED)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    if *shown == wanted {
+        return;
     }
+    let row = *chips;
+    commands.entity(row).despawn_children();
+    wanted.iter().for_each(|(label, color)| {
+        let tag = commands.spawn(chip(label.clone(), *color)).id();
+        commands.entity(row).add_child(tag);
+    });
+    *shown = wanted;
 }
 
 /// The best for what's being played now, if any.
@@ -244,8 +376,24 @@ fn current_best(
     })
 }
 
+/// 39700 -> "39,700".
+fn grouped(n: u32) -> String {
+    let digits = n.to_string();
+    let len = digits.len();
+    digits
+        .chars()
+        .enumerate()
+        .flat_map(|(i, c)| {
+            let comma = i > 0 && (len - i).is_multiple_of(3);
+            comma.then_some(',').into_iter().chain([c])
+        })
+        .collect()
+}
+
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 fn update_score(
-    mut text: Single<&mut Text, With<ScoreText>>,
+    mut card: Single<&mut Visibility, With<ScoreCard>>,
+    mut lines: Query<(&ScoreLine, &mut Text)>,
     mut display: ResMut<Display>,
     judge: Res<Judge>,
     transport: Res<Transport>,
@@ -253,8 +401,13 @@ fn update_score(
     bests: Res<Bests>,
     song: Res<ActiveSong>,
 ) {
-    if !transport.mode.is_scored() {
-        text.0.clear();
+    let scored = transport.mode.is_scored();
+    card.set_if_neq(if scored {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    });
+    if !scored {
         return;
     }
     let score = judge.0.score();
@@ -266,24 +419,23 @@ fn update_score(
     } else {
         display.points + step
     };
-    let accuracy = score
-        .accuracy()
-        .map_or_else(|| "-".to_owned(), |a| format!("{:.1}%", a * 100.0));
-    text.0 = format!(
-        "{points:07}\nx{mult}  |  {accuracy}",
-        points = display.points.round() as u32,
-        mult = score.multiplier(),
-    );
     let best = current_best(&bests, &song, &judge, &transport);
     // Once finished, the run is already in the bests; the card says how it went.
     let chasing = transport.state != PlayState::Finished;
-    if let Some(line) = records::chase(score.points, best)
-        .label()
-        .filter(|_| chasing)
-    {
-        text.0.push('\n');
-        text.0.push_str(&line);
-    }
+    lines.iter_mut().for_each(|(line, mut text)| {
+        let wanted = match line {
+            ScoreLine::Points => grouped(display.points.round() as u32),
+            ScoreLine::Multiplier => format!("×{}", score.multiplier()),
+            ScoreLine::Accuracy => score
+                .accuracy()
+                .map_or_else(|| "–".to_owned(), |a| format!("{:.1}%", a * 100.0)),
+            ScoreLine::Chase => records::chase(score.points, best)
+                .label()
+                .filter(|_| chasing)
+                .unwrap_or_default(),
+        };
+        set(&mut text, wanted);
+    });
 }
 
 /// One big pop the moment a run overtakes the personal best.
@@ -418,9 +570,9 @@ fn tick_strip(
 
 fn show_help(mut help: Single<&mut Visibility, With<HelpText>>, transport: Res<Transport>) {
     let wanted = match transport.state {
-        PlayState::Paused => Visibility::Inherited,
         PlayState::Playing if transport.time.0 < 0.0 => Visibility::Inherited,
-        PlayState::Playing | PlayState::Finished => Visibility::Hidden,
+        // Paused, the pause panel takes over.
+        PlayState::Playing | PlayState::Paused | PlayState::Finished => Visibility::Hidden,
     };
     if **help != wanted {
         **help = wanted;

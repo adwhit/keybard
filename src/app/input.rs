@@ -128,6 +128,7 @@ pub fn plugin(midi_input: MidiInput, echo: MidiEcho) -> impl Fn(&mut App) {
                 Update,
                 judge_presses
                     .in_set(Phase::Simulate)
+                    .after(super::transport::controls)
                     .before(super::transport::advance),
             );
         match &midi_input {

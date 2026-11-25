@@ -168,3 +168,17 @@ pub const BOOK: [ChordKey; 24] = {
         ChordKey::minor(P::GSharp),
     ]
 };
+
+/// Three neighbouring keys held together (C, C#, D, say): the gesture that
+/// pauses and resumes a song from the piano. Nothing in a song asks for it,
+/// and other held keys don't get in the way. Returns the three keys.
+pub fn pause_cluster(held: &[MidiNote]) -> Option<[MidiNote; 3]> {
+    let neighbour = |low: MidiNote, step: u8| {
+        MidiNote::new(low.value() + step)
+            .ok()
+            .filter(|n| held.contains(n))
+    };
+    held.iter()
+        .copied()
+        .find_map(|low| Some([low, neighbour(low, 1)?, neighbour(low, 2)?]))
+}

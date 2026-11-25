@@ -135,12 +135,9 @@ fn hold_on_menu(screen: Res<Screen>, mut transport: ResMut<Transport>) {
 
 fn heading(value: &str) -> impl Bundle {
     (
-        Text::new(value),
-        TextFont {
-            font_size: FontSize::Px(14.0),
-            ..default()
-        },
-        TextColor(palette::HUD_TEXT.with_alpha(0.6)),
+        Text::new(value.to_uppercase()),
+        super::fonts::bold(12.0),
+        TextColor(palette::HUD_DIM),
         Node {
             margin: UiRect::top(Val::Px(10.0)),
             ..default()
@@ -177,10 +174,7 @@ fn spawn_screen(mut commands: Commands) {
         children![
             (
                 Text::new("keybard"),
-                TextFont {
-                    font_size: FontSize::Px(54.0),
-                    ..default()
-                },
+                super::fonts::bold(54.0),
                 TextColor(palette::timing(Timing::Perfect)),
             ),
             label_text("Pick a song, choose how to play it, and start.", 16.0),
@@ -220,7 +214,7 @@ fn spawn_screen(mut commands: Commands) {
                             ..default()
                         },
                         children![
-                            heading("SONGS  (best in this mode)"),
+                            heading("Songs · best in this mode"),
                             (
                                 SongRows,
                                 Node {
@@ -277,7 +271,7 @@ fn spawn_screen(mut commands: Commands) {
                 ],
             ),
             label_text(
-                "Play a button's chord to press it  |  Enter starts  |  Esc quits",
+                "Play a button's chord to press it  ·  in a song, hold C C# D to pause  ·  Enter starts  ·  Esc quits",
                 12.0,
             ),
             (
@@ -410,14 +404,14 @@ fn refresh(
             || "not played".to_owned(),
             |b| {
                 format!(
-                    "{}  {:07}",
+                    "{}  {}",
                     grade_label(Some(Grade::from_accuracy(b.accuracy))),
                     b.points
                 )
             },
         );
         let today = if best.0 == challenge.song {
-            "today  |  "
+            "today  ·  "
         } else {
             ""
         };

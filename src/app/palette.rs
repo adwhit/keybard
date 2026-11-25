@@ -33,12 +33,16 @@ pub const TOUCH_CUE: Color = Color::srgb(0.80, 0.70, 1.0);
 pub const DARK_INK: Color = Color::srgb(0.04, 0.04, 0.06);
 pub const LIGHT_INK: Color = Color::srgb(0.97, 0.97, 0.95);
 pub const PRESSED: Color = Color::srgb(1.0, 0.65, 0.15);
+/// Cards and panels floating over the game.
+pub const PANEL: Color = Color::srgba(0.07, 0.07, 0.11, 0.96);
 /// Clickable buttons.
 pub const BUTTON: Color = Color::srgb(0.13, 0.13, 0.18);
 pub const BUTTON_HOVER: Color = Color::srgb(0.20, 0.20, 0.28);
 pub const BUTTON_PRESSED: Color = Color::srgb(0.30, 0.26, 0.12);
 pub const BUTTON_SELECTED: Color = Color::srgb(0.26, 0.22, 0.10);
 pub const BUTTON_BORDER: Color = Color::srgb(0.26, 0.26, 0.34);
+/// The thicker lower edge that makes a button look pressable.
+pub const BUTTON_SHADOW: Color = Color::srgb(0.05, 0.05, 0.08);
 /// Notes around a drilled section (warm-up and tail): greyed out.
 pub const DRILL_CONTEXT: Color = Color::srgba(0.55, 0.55, 0.60, 0.45);
 /// The chord shortcut tag in a button's corner.

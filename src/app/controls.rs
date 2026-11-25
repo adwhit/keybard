@@ -99,6 +99,11 @@ impl Control {
             Self::NextSong => ChordKey::major(P::G),
             Self::ToggleLoop => ChordKey::major(P::F),
             Self::OpenMenu => ChordKey::minor(P::A),
+            // The pause panel: minors, as the song list (never shown with it)
+            // uses. Slower sits below faster, as F sits below G.
+            Self::Restart => ChordKey::minor(P::C),
+            Self::Slower => ChordKey::minor(P::F),
+            Self::Faster => ChordKey::minor(P::G),
             Self::SetMode(PlayMode::Listen) => ChordKey::major(P::D),
             Self::SetMode(PlayMode::Wait) => ChordKey::major(P::E),
             Self::SetMode(PlayMode::Play) => ChordKey::major(P::A),
@@ -202,7 +207,8 @@ impl Control {
     ];
 }
 
-/// Song buttons, in playlist order: minor chords not used elsewhere.
+/// Song buttons, in playlist order: minor chords. Only the pause panel
+/// (never on screen with the song list) uses minors too.
 const SONG_CHORDS: [ChordKey; 8] = [
     ChordKey::minor(PitchClass::C),
     ChordKey::minor(PitchClass::G),

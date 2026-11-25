@@ -52,6 +52,18 @@ press buttons that are on screen, so mid-song they're just notes. The start
 screen leaves the piano in view and names what you're holding ("You're
 playing Csus4 (no button)").
 
+### Pausing from the piano
+
+Hold three neighbouring keys together (C, C♯ and D, say, in any octave) to
+pause a song; do it again to carry on. Nothing in a song asks for that
+cluster, and its notes are never counted as wrong notes, so pausing costs no
+score or combo. While paused (by the cluster or Space) a panel over the song
+offers **Resume** (C), **Restart** (Cm), **Next song** (G), **Start screen**
+(Am), **Slower** (Fm) and **Faster** (Gm) with the current speed between
+them, the modes and hands, and the loop, metronome, sight-reading, bar label
+and MIDI mute toggles, each pressed by its chord. Speed, mode and hands can
+all be changed without leaving the song or touching the computer.
+
 The **Chord book** (start screen, chord G, or F8) has a page for each of the
 24 major and minor triads, easiest first: the chord's notes and makeup, its
 keys lit on the piano, and a challenge to play it in root position, first and
@@ -242,7 +254,7 @@ that records every judgement as a coloured tick.
 
 | Key | Action |
 | --- | --- |
-| Space | play / pause (replay when finished) |
+| Space | play / pause (replay when finished); C C♯ D held together on the piano does the same |
 | Left / Right | seek ±5s |
 | Up / Down or [ / ] | speed ±5% (25%-200%) |
 | Tab | cycle mode |
@@ -322,13 +334,17 @@ Layout:
 - `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
 - `src/glyph.rs`: treble and bass clefs as filled broad-nib pen strokes
-- `src/chord_keys.rs`: triads as button shortcuts (any octave or inversion)
+- `src/chord_keys.rs`: triads as button shortcuts (any octave or inversion),
+  and the three-key pause cluster
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
   notation, HUD, effects, results, autopilot, generated textures and
   offscreen snapshots
 - `src/app/controls.rs`: every user command as one `Control` message, sent by
   key shortcuts, buttons (`ControlButton`) and the macOS menu bar
-  (`src/app/menubar.rs`); `src/app/menu.rs` is the start screen
+  (`src/app/menubar.rs`); `src/app/menu.rs` is the start screen and
+  `src/app/pause.rs` the pause cluster and panel
+- `src/app/fonts.rs`: Fira Sans (regular and bold, from `assets/fonts`, SIL
+  Open Font License) compiled in for all text
 
 ## Status
 

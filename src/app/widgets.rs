@@ -6,9 +6,10 @@ use bevy::prelude::*;
 use super::controls::{Control, ControlButton};
 use super::falling::View;
 use super::input::MidiEcho;
+use super::section::SectionLoop;
 use super::songs::Playlist;
 use super::transport::{Metronome, Transport};
-use super::{Judge, Phase, palette};
+use super::{Judge, Phase, fonts, palette};
 
 /// A button sending `control`, with a text label and, if the command has a
 /// chord shortcut, a badge naming it.
@@ -18,16 +19,57 @@ pub fn button(control: Control, label: impl Into<String>, size: f32) -> impl Bun
         ChordBadges(control.chord().map(|c| c.label())),
         PickingInteraction::default(),
         Node {
-            padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
-            border: UiRect::all(Val::Px(1.0)),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(7.0)),
+            border: BUTTON_EDGE,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
+            border_radius: BorderRadius::all(Val::Px(6.0)),
             ..default()
         },
         BackgroundColor(palette::BUTTON),
-        BorderColor::all(palette::BUTTON_BORDER),
-        children![label_text(label, size)],
+        edge(palette::BUTTON_BORDER),
+        children![(
+            Text::new(label),
+            fonts::bold(size),
+            TextColor(palette::HUD_TEXT),
+        )],
+    )
+}
+
+/// A thin outline with a thick bottom, like a key that can go down.
+pub const BUTTON_EDGE: UiRect = UiRect {
+    left: Val::Px(1.0),
+    right: Val::Px(1.0),
+    top: Val::Px(1.0),
+    bottom: Val::Px(3.0),
+};
+
+fn edge(outline: Color) -> BorderColor {
+    BorderColor {
+        bottom: palette::BUTTON_SHADOW,
+        ..BorderColor::all(outline)
+    }
+}
+
+/// The big heading on a card: "PAUSED".
+pub fn panel_title(value: &str) -> impl Bundle {
+    (
+        Text::new(value),
+        fonts::bold(36.0),
+        TextColor(palette::timing(crate::performance::Timing::Perfect)),
+    )
+}
+
+/// The small caps label at the start of a row of buttons.
+pub fn section_label(value: &str) -> impl Bundle {
+    (
+        Text::new(value),
+        fonts::bold(12.0),
+        TextColor(palette::HUD_DIM),
+        Node {
+            min_width: Val::Px(76.0),
+            ..default()
+        },
     )
 }
 
@@ -56,10 +98,7 @@ fn add_badge(added: On<Add<ChordBadges>>, badges: Query<&ChordBadges>, mut comma
             BackgroundColor(palette::CHORD_BADGE),
             children![(
                 Text::new(chord.clone()),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
+                fonts::bold(11.0),
                 TextColor(palette::DARK_INK),
             )],
         ));
@@ -69,10 +108,7 @@ fn add_badge(added: On<Add<ChordBadges>>, badges: Query<&ChordBadges>, mut comma
 pub fn label_text(value: impl Into<String>, size: f32) -> impl Bundle {
     (
         Text::new(value),
-        TextFont {
-            font_size: FontSize::Px(size),
-            ..default()
-        },
+        fonts::regular(size),
         TextColor(palette::HUD_TEXT),
     )
 }
@@ -95,6 +131,7 @@ struct Settings {
     sight_reading: bool,
     metronome: bool,
     midi_muted: bool,
+    looping: bool,
 }
 
 impl Settings {
@@ -106,6 +143,7 @@ impl Settings {
             Control::ToggleSightReading => self.sight_reading,
             Control::ToggleMetronome => self.metronome,
             Control::ToggleMidiEcho => self.midi_muted,
+            Control::ToggleLoop => self.looping,
             // The main action always stands out.
             Control::StartSong => true,
             _ => false,
@@ -118,6 +156,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(Update, style_buttons.in_set(Phase::Present));
 }
 
+#[expect(clippy::too_many_arguments, reason = "Bevy system parameters")]
 fn style_buttons(
     mut buttons: Query<(
         &ControlButton,
@@ -131,6 +170,7 @@ fn style_buttons(
     view: Res<View>,
     metronome: Res<Metronome>,
     echo: Res<MidiEcho>,
+    section: Res<SectionLoop>,
 ) {
     let settings = Settings {
         mode: transport.mode,
@@ -139,6 +179,7 @@ fn style_buttons(
         sight_reading: *view == View::SightReading,
         metronome: *metronome == Metronome::On,
         midi_muted: *echo == MidiEcho::Mute,
+        looping: section.0.is_some(),
     };
     buttons
         .iter_mut()
@@ -157,6 +198,6 @@ fn style_buttons(
             } else {
                 palette::BUTTON_BORDER
             };
-            border.set_if_neq(BorderColor::all(edge));
+            border.set_if_neq(self::edge(edge));
         });
 }

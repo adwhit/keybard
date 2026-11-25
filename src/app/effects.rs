@@ -266,10 +266,7 @@ pub(super) fn popup(
         },
         Ephemeral::new(0.75),
         Text2d::new(label),
-        TextFont {
-            font_size: FontSize::Px(size),
-            ..default()
-        },
+        super::fonts::bold(size),
         TextColor(color),
         // Keeps the text readable over bars of a similar colour.
         Text2dShadow {
@@ -411,10 +408,7 @@ fn count_in(
         },
         Ephemeral::new(0.5),
         Text2d::new(tick.0.remaining.to_string()),
-        TextFont {
-            font_size: FontSize::Px(80.0),
-            ..default()
-        },
+        super::fonts::numbers(80.0),
         TextColor(palette::HUD_TEXT),
         Transform::from_xyz(0.0, -40.0, POPUP_Z),
     ));

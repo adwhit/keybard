@@ -78,3 +78,20 @@ mod book {
         assert_eq!(Inversion::First.label(), "first inversion");
     }
 }
+
+#[test]
+fn three_neighbouring_keys_make_the_pause_cluster() {
+    use keybard::chord_keys::pause_cluster;
+    assert_eq!(
+        pause_cluster(&notes(&[61, 60, 62])),
+        Some([60, 61, 62].map(|v| MidiNote::new(v).unwrap()))
+    );
+    assert!(
+        pause_cluster(&notes(&[48, 72, 73, 74])).is_some(),
+        "the other hand can hold a note"
+    );
+    assert_eq!(pause_cluster(&notes(&[60, 61])), None, "two isn't enough");
+    assert_eq!(pause_cluster(&notes(&[60, 61, 63])), None, "a gap");
+    assert_eq!(pause_cluster(&notes(&[60, 64, 67])), None, "a chord");
+    assert_eq!(pause_cluster(&notes(&[126, 127])), None, "top of the range");
+}
