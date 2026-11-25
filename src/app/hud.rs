@@ -56,7 +56,7 @@ struct TimingText;
 #[derive(Component)]
 struct ProgressFill;
 
-/// How to play and pause, shown before the music starts.
+/// A quiet reminder of how to pause, in the corner while playing.
 #[derive(Component)]
 pub struct HelpText;
 
@@ -73,8 +73,7 @@ struct Display {
     last_age: f32,
 }
 
-const HELP: &str = "Hold C C# D together to pause  ·  Space works too\n\
-Play on a MIDI keyboard, or Z S X D C V… and Q 2 W 3 E R… (-/= shift octave)";
+const HELP: &str = "Hold C C# D to pause";
 
 const STRIP_HEIGHT: f32 = 5.0;
 const STRIP_Z: f32 = 6.0;
@@ -191,30 +190,18 @@ fn spawn_hud(mut commands: Commands) {
             line(ScoreLine::Chase, fonts::regular(12.0), palette::HUD_DIM),
         ],
     ));
+    // Bottom right of the falling area, just above the keys.
     commands.spawn((
         HelpText,
+        Text::new(HELP),
+        fonts::regular(11.0),
+        TextColor(palette::HUD_DIM.with_alpha(0.7)),
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(0.0),
-            right: Val::Px(0.0),
-            top: Val::Percent(64.0),
-            justify_content: JustifyContent::Center,
+            right: Val::Px(10.0),
+            bottom: Val::Percent(layout::WHITE_KEY_HEIGHT / layout::CANVAS_HEIGHT * 100.0 + 0.8),
             ..default()
         },
-        children![(
-            Node {
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(6.0)),
-                border_radius: BorderRadius::all(Val::Px(14.0)),
-                ..default()
-            },
-            BackgroundColor(palette::PANEL.with_alpha(0.8)),
-            children![(
-                Text::new(HELP),
-                fonts::regular(12.0),
-                TextColor(palette::HUD_DIM),
-                TextLayout::justify(Justify::Center),
-            )],
-        )],
     ));
     commands.spawn((
         ComboText,
@@ -570,9 +557,9 @@ fn tick_strip(
 
 fn show_help(mut help: Single<&mut Visibility, With<HelpText>>, transport: Res<Transport>) {
     let wanted = match transport.state {
-        PlayState::Playing if transport.time.0 < 0.0 => Visibility::Inherited,
+        PlayState::Playing => Visibility::Inherited,
         // Paused, the pause panel takes over.
-        PlayState::Playing | PlayState::Paused | PlayState::Finished => Visibility::Hidden,
+        PlayState::Paused | PlayState::Finished => Visibility::Hidden,
     };
     if **help != wanted {
         **help = wanted;

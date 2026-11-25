@@ -233,7 +233,7 @@ fn keys_show_which_finger_to_use_as_notes_approach() {
 }
 
 #[test]
-fn a_hint_shows_before_the_music_and_the_panel_takes_over_when_paused() {
+fn a_quiet_pause_hint_sits_in_the_corner_while_playing() {
     use keybard::app::hud::HelpText;
     let mut h = Harness::new(song(), PlayMode::Listen);
     let shown = |h: &mut Harness| {
@@ -242,12 +242,12 @@ fn a_hint_shows_before_the_music_and_the_panel_takes_over_when_paused() {
     };
     assert!(shown(&mut h), "lead-in");
     assert!(
-        h.ui_texts().iter().any(|t| t.contains("C C# D")),
-        "says how to pause from the piano: {:?}",
+        h.ui_texts().iter().any(|t| t == "Hold C C# D to pause"),
+        "one short line: {:?}",
         h.ui_texts()
     );
     h.run_until(0.5);
-    assert!(!shown(&mut h), "playing");
+    assert!(shown(&mut h), "stays while playing");
     h.tap(KeyCode::Space);
     assert!(!shown(&mut h), "the pause panel says it all");
 }
