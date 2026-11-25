@@ -1,21 +1,23 @@
 //! The chord book: every major and minor triad, one per page, with its keys
 //! lit on the piano and a challenge to play it in all three positions.
 //!
-//! Its own buttons have no chord shortcuts, so playing the page's chord is
-//! always practice, never a button press.
+//! Its own buttons have sus4 and diminished chords, which no page is, so
+//! playing the page's chord is always practice, never a button press. The
+//! challenges you clear become flash cards (see [`super::drill`]).
 
 use std::collections::{BTreeSet, HashSet};
 
 use bevy::prelude::*;
 use tracing::info;
 
-use super::controls::Control;
+use super::controls::{Control, ControlButton};
 use super::input::HeldKeys;
 use super::menu::{Screen, describe_held};
 use super::piano::GuideKeys;
 use super::widgets::{button, label_text};
 use super::{Phase, palette};
 use crate::chord_keys::{BOOK, ChordKey, Inversion};
+use crate::drill::TIME_LIMIT;
 use crate::layout;
 use crate::music::MidiNote;
 use crate::performance::Timing;
@@ -63,6 +65,11 @@ impl ChordBook {
         (0..BOOK.len()).filter(|p| self.page_mastered(*p)).count()
     }
 
+    /// Show a message on the page until it's turned.
+    pub fn tell(&mut self, news: impl Into<String>) {
+        self.news = Some(news.into());
+    }
+
     fn turn(&mut self, by: isize) {
         let pages = BOOK.len() as isize;
         self.page = (self.page as isize + by).rem_euclid(pages) as usize;
@@ -70,32 +77,11 @@ impl ChordBook {
     }
 }
 
-/// "C major", "F# minor".
-fn full_name(chord: ChordKey) -> String {
-    let label = chord.label();
-    match label.strip_suffix('m') {
-        Some(root) => format!("{root} minor"),
-        None => format!("{label} major"),
-    }
-}
-
-/// The chord's notes in root position around middle C (roots from G3 to
-/// F#4), to light.
-fn guide_notes(chord: ChordKey) -> Vec<MidiNote> {
-    let [root, third, fifth] = chord.pitch_classes().map(|pc| pc.semitone());
-    let above = |base: u8, pc: u8| base + (pc + 12 - base % 12) % 12;
-    let low = above(55, root);
-    [low, above(low, third), above(low, fifth)]
-        .into_iter()
-        .filter_map(|v| MidiNote::new(v).ok())
-        .collect()
-}
-
 #[derive(Component, Debug)]
 pub struct ChordBookPage;
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-enum Line {
+pub(super) enum Line {
     Page,
     Name,
     Notes,
@@ -103,6 +89,7 @@ enum Line {
     News,
     Held,
     Progress,
+    Cards,
 }
 
 pub fn plugin(app: &mut App) {
@@ -149,6 +136,7 @@ fn spawn_book(mut commands: Commands) {
             line(Line::News, 18.0, palette::timing(Timing::Great)),
             line(Line::Held, 16.0, palette::CHORD_BADGE),
             line(Line::Progress, 14.0, palette::FIRE),
+            line(Line::Cards, 14.0, palette::HUD_TEXT),
             (
                 Node {
                     flex_direction: FlexDirection::Row,
@@ -159,12 +147,15 @@ fn spawn_book(mut commands: Commands) {
                 children![
                     button(Control::SeekBack, "< Previous", 16.0),
                     button(Control::SeekForward, "Next >", 16.0),
-                    // Back, not OpenMenu: it has no chord, so playing a
-                    // page's chord (say Am) can't close the book.
+                    button(Control::StartDrill, "Flash cards", 16.0),
+                    // Back, not OpenMenu: OpenMenu's chord is Am, a page.
                     button(Control::Back, "Back", 16.0),
                 ],
             ),
-            label_text("Left/Right turn pages  |  Esc goes back", 12.0),
+            label_text(
+                "Play a button's chord to press it  |  Left/Right turn pages  |  Enter: flash cards  |  Esc goes back",
+                12.0,
+            ),
         ],
     ));
 }
@@ -202,20 +193,33 @@ fn practise(screen: Res<Screen>, held: Res<HeldKeys>, mut book: ResMut<ChordBook
             "chord book challenge done"
         );
         book.news = Some(if book.page_mastered(page) {
-            format!("{} mastered!", full_name(chord))
+            format!("{} mastered!", chord.name())
         } else {
             format!("Got it: {}", inversion.label())
         });
     }
 }
 
-fn show(
+/// What the flash-cards button will deal.
+fn cards_line(cleared: usize) -> String {
+    match cleared {
+        0 => "Flash cards: Clear a challenge to make your first card.".to_owned(),
+        1 => format!("Flash cards: 1 card ready, {:.0}s to play it", TIME_LIMIT.0),
+        n => format!(
+            "Flash cards: {n} cards ready, {:.0}s to play each",
+            TIME_LIMIT.0
+        ),
+    }
+}
+
+pub(super) fn show(
     screen: Res<Screen>,
     book: Res<ChordBook>,
     held: Res<HeldKeys>,
     mut root: Single<&mut Visibility, With<ChordBookPage>>,
     mut lines: Query<(&Line, &mut Text)>,
     mut guide: ResMut<GuideKeys>,
+    buttons: Query<(&ControlButton, &InheritedVisibility)>,
 ) {
     let open = *screen == Screen::ChordBook;
     root.set_if_neq(if open {
@@ -223,13 +227,16 @@ fn show(
     } else {
         Visibility::Hidden
     });
-    let wanted_guide = if open {
-        guide_notes(book.chord())
-    } else {
-        Vec::new()
-    };
-    if guide.0 != wanted_guide {
-        guide.0 = wanted_guide;
+    // The flash cards light (or hide) the keys themselves.
+    if *screen != Screen::Drill {
+        let wanted_guide = if open {
+            book.chord().keys(Inversion::Root)
+        } else {
+            Vec::new()
+        };
+        if guide.0 != wanted_guide {
+            guide.0 = wanted_guide;
+        }
     }
     if !open {
         return;
@@ -239,7 +246,7 @@ fn show(
     lines.iter_mut().for_each(|(kind, mut text)| {
         let wanted = match kind {
             Line::Page => format!("CHORD BOOK  |  page {} of {}", book.page + 1, BOOK.len()),
-            Line::Name => full_name(chord),
+            Line::Name => chord.name(),
             Line::Notes => {
                 let [root, third, fifth] = chord.note_names();
                 format!("{root} {third} {fifth}  |  root {root}, third {third}, fifth {fifth}")
@@ -261,10 +268,17 @@ fn show(
                 .collect::<Vec<_>>()
                 .join("\n"),
             Line::News => book.news.clone().unwrap_or_default(),
-            Line::Held => describe_held(&notes, false)
-                .map(|s| s.replace("  (no button)", ""))
-                .unwrap_or_default(),
+            Line::Held => {
+                let button_chord = buttons
+                    .iter()
+                    .filter(|(_, visible)| visible.get())
+                    .any(|(b, _)| b.0.chord().is_some_and(|c| c.matches(&notes)));
+                describe_held(&notes, button_chord)
+                    .map(|s| s.replace("  (no button)", ""))
+                    .unwrap_or_default()
+            }
             Line::Progress => format!("Chords mastered: {}/{}", book.mastered(), BOOK.len()),
+            Line::Cards => cards_line(book.done.len()),
         };
         if text.0 != wanted {
             text.0 = wanted;

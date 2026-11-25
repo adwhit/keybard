@@ -6,6 +6,7 @@ mod app;
 mod challenge;
 mod chord_keys;
 mod chords;
+mod drill;
 mod dynamics;
 mod fingering;
 mod glyph;

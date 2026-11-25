@@ -4,13 +4,18 @@ use super::*;
 use keybard::app::book::ChordBook;
 use keybard::app::menu::{Screen, StartScreen};
 use keybard::app::piano::GuideKeys;
+use keybard::chord_keys::{BOOK, Inversion};
 
-fn open_book() -> Harness {
+pub(super) fn open_book() -> Harness {
+    open_book_with(Settings::default())
+}
+
+pub(super) fn open_book_with(settings: Settings) -> Harness {
     let mut h = Harness::build(Options {
         song: song(),
         settings: Settings {
             mode: PlayMode::Play,
-            ..Settings::default()
+            ..settings
         },
         midi_input: MidiInput::Disabled,
         backend: Backend::Headless,
@@ -25,14 +30,14 @@ fn open_book() -> Harness {
     h
 }
 
-fn chord(h: &mut Harness, pitches: &[u8]) {
+pub(super) fn chord(h: &mut Harness, pitches: &[u8]) {
     pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Down));
     h.frames(2);
     pitches.iter().for_each(|p| h.midi(*p, KeyEdge::Up));
     h.frames(2);
 }
 
-fn page(h: &mut Harness) -> usize {
+pub(super) fn page(h: &mut Harness) -> usize {
     h.world().resource::<ChordBook>().page
 }
 
@@ -100,4 +105,46 @@ fn pages_turn_with_buttons_and_arrows_and_esc_closes_the_book() {
     assert_eq!(*h.world().resource::<Screen>(), Screen::Menu);
     assert!(h.world().resource::<GuideKeys>().0.is_empty(), "keys unlit");
     assert!(h.app.should_exit().is_none());
+}
+
+/// Buttons in the book have chords no page has.
+const NEXT: [u8; 3] = [60, 65, 67]; // Csus4
+const PREVIOUS: [u8; 3] = [55, 60, 62]; // Gsus4
+const BACK: [u8; 3] = [59, 62, 65]; // Bdim
+
+#[test]
+fn the_book_is_steered_by_chords_no_page_uses() {
+    let mut h = open_book();
+    assert!(h.has_button(Control::StartDrill), "the flash-cards button");
+    chord(&mut h, &NEXT);
+    assert_eq!(page(&mut h), 1);
+    chord(&mut h, &NEXT);
+    chord(&mut h, &PREVIOUS);
+    assert_eq!(page(&mut h), 1);
+    chord(&mut h, &BACK);
+    assert_eq!(*h.world().resource::<Screen>(), Screen::Menu);
+    assert!(
+        h.app.should_exit().is_none(),
+        "Back from the book doesn't quit"
+    );
+}
+
+#[test]
+fn every_page_chord_is_practice_not_a_button() {
+    let mut h = open_book();
+    (0..BOOK.len()).for_each(|p| {
+        let keys: Vec<u8> = BOOK[p]
+            .keys(Inversion::Root)
+            .iter()
+            .map(|n| n.value())
+            .collect();
+        chord(&mut h, &keys);
+        assert_eq!(*h.world().resource::<Screen>(), Screen::ChordBook);
+        assert_eq!(page(&mut h), p, "{} turned the page", BOOK[p].label());
+        h.tap(KeyCode::ArrowRight);
+    });
+    assert_eq!(
+        h.world().resource::<ChordBook>().progress().len(),
+        BOOK.len()
+    );
 }

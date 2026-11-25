@@ -47,6 +47,13 @@ impl From<Mode> for PlayMode {
     }
 }
 
+/// A screen to open on instead of the start screen or a song.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum OpenArg {
+    ChordBook,
+    FlashCards,
+}
+
 /// Falling-bars piano trainer.
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -79,6 +86,9 @@ struct Cli {
     /// Open on the start screen even when a song or mode is given.
     #[arg(long)]
     start_screen: bool,
+    /// Open on the chord book, or straight into its flash cards.
+    #[arg(long, value_enum, value_name = "SCREEN")]
+    open: Option<OpenArg>,
     /// Don't sound notes played on the MIDI keyboard (it has its own
     /// sound); everything the computer plays still sounds. F7 toggles.
     #[arg(long)]
@@ -237,10 +247,11 @@ fn main() -> ExitCode {
         playlist,
         settings,
         saves,
-        screen: if direct && !cli.start_screen {
-            Screen::Song
-        } else {
-            Screen::Menu
+        screen: match (cli.open, direct && !cli.start_screen) {
+            (Some(OpenArg::ChordBook), _) => Screen::ChordBook,
+            (Some(OpenArg::FlashCards), _) => Screen::Drill,
+            (None, true) => Screen::Song,
+            (None, false) => Screen::Menu,
         },
     });
     match exit {

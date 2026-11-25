@@ -6,6 +6,7 @@ pub mod builtin;
 pub mod challenge;
 pub mod chord_keys;
 pub mod chords;
+pub mod drill;
 pub mod dynamics;
 pub mod error;
 pub mod fingering;

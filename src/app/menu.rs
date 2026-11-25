@@ -28,6 +28,8 @@ pub enum Screen {
     Menu,
     /// The chord book, opened from the start screen.
     ChordBook,
+    /// Flash cards of the chords cleared in the book (from the book).
+    Drill,
     /// Choosing or adding a player, from the start screen.
     Players,
     Song,
@@ -84,7 +86,7 @@ pub fn plugin(screen: Screen) -> impl Fn(&mut App) {
     }
 }
 
-fn navigate(
+pub(super) fn navigate(
     mut controls: MessageReader<Control>,
     mut screen: ResMut<Screen>,
     mut transport: ResMut<Transport>,
@@ -386,7 +388,7 @@ fn refresh(
 ) {
     let wanted = match *screen {
         Screen::Menu => Visibility::Inherited,
-        Screen::Song | Screen::ChordBook | Screen::Players => Visibility::Hidden,
+        Screen::Song | Screen::ChordBook | Screen::Drill | Screen::Players => Visibility::Hidden,
     };
     root.set_if_neq(wanted);
     if *screen != Screen::Menu {

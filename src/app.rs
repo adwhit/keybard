@@ -11,6 +11,7 @@ mod audio;
 mod autopilot;
 pub mod book;
 pub mod controls;
+pub mod drill;
 pub mod effects;
 pub mod falling;
 mod fonts;
@@ -307,6 +308,7 @@ pub fn build(options: Options) -> App {
             pause::plugin,
             widgets::plugin,
             book::plugin,
+            drill::plugin,
             players::plugin(profile),
         ));
     if options.player == Player::Autopilot {

@@ -30,6 +30,7 @@ just play-midi path/to/song.mid
 just play --mode play --autopilot  # watch the built-in player go for a full combo
 just smoke                         # whole song headlessly, no window/GPU/audio
 just snapshot                      # render PNGs offscreen into target/snapshots
+just snapshot-book flash-cards     # the chord book (or its flash cards) offscreen
 just listen twinkle                # render the song to target/twinkle.wav
 ```
 
@@ -68,8 +69,23 @@ The **Chord book** (start screen, chord G, or F8) has a page for each of the
 24 major and minor triads, easiest first: the chord's notes and makeup, its
 keys lit on the piano, and a challenge to play it in root position, first and
 second inversion. Each ticks off as you play it, and the book counts the
-chords you've mastered (for this session). Left/Right or the buttons turn
-pages; the book's own buttons have no chords, so playing is always practice.
+chords you've mastered. Left/Right or the buttons turn pages. The book's own
+buttons have chords that no page is, so playing a page is always practice:
+**Previous** Gsus4 (G C D), **Next** Csus4 (C F G), **Flash cards** Dsus4
+(D G A) and **Back** Bdim (B D F; also Back on the players screen).
+
+**Flash cards** (that button, Dsus4 or Enter in the book) drill the
+challenges you've cleared: each card names a chord and a position, and you
+have 5 seconds to play it, with a bar counting down. A miss (another chord,
+the wrong position or too slow) says what you played and lights the right
+keys, and the card comes back two cards later; cards you miss are dealt more
+often for the rest of the session, until you get them right. A round is 10
+cards and ends on a summary (right, wrong, too slow, average time, and which
+chords to work on) with **Again** (Dsus4 or Enter) and **Back to the book**
+(Bdim or Esc). Bdim or Esc also stops a round. Answers are always major or
+minor triads, so they never press a button. With nothing cleared yet, the
+book says so and points you at its challenges. `--open chord-book` or
+`--open flash-cards` starts on either screen.
 
 ### Players and saved settings
 
@@ -268,8 +284,8 @@ that records every judgement as a coloured tick.
 | F8 | chord book (from the start screen) |
 | PgUp / PgDn | previous / next song |
 | Backspace | restart |
-| Enter | start the song (start screen) |
-| Esc | back to the start screen; quit from there |
+| Enter | start the song (start screen); flash cards (chord book) |
+| Esc | back: song or chord book to the start screen, flash cards to the book; quit from the start screen |
 | Z S X D C V … | play the lower octave (C3 by default) |
 | Q 2 W 3 E R … | play the upper octave (C4 by default) |
 | - / = | shift the computer-keyboard octave |
@@ -334,8 +350,10 @@ Layout:
 - `src/practice.rs`: loop regions for drilling sections
 - `src/layout.rs`: screen geometry (key placement, fall and staff coordinates)
 - `src/glyph.rs`: treble and bass clefs as filled broad-nib pen strokes
-- `src/chord_keys.rs`: triads as button shortcuts (any octave or inversion),
-  and the three-key pause cluster
+- `src/chord_keys.rs`: triads as button shortcuts (any octave or inversion)
+  and as chord-book pages, and the three-key pause cluster
+- `src/drill.rs`: the chord book's flash cards (deck, clock, marking,
+  favouring misses), shown by `src/app/drill.rs`
 - `src/app/*`: Bevy plugins for transport, input, audio, piano, falling bars,
   notation, HUD, effects, results, autopilot, generated textures and
   offscreen snapshots
@@ -353,7 +371,7 @@ flats, accidentals only where needed, ledger lines, stems, flags, beams grouped
 by the meter, rests, chord symbols, dynamic markings,
 bar lines, noteheads coloured by result), rounded falling bars with note names, a
 lit keyboard, three play modes, timing grades, combos, results and personal
-bests, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
+bests, a chord book with timed flash cards, fingering hints, one-hand practice, section looping, a count-in, hit effects, an autopilot, MIDI file and MIDI device input, and a
 piano-like additive synth.
 
 Not yet done: sampled piano sound.

@@ -46,6 +46,12 @@ snapshot SONG="ode-to-joy" *TIMES="--at 1 --at 6 --at 12":
     rm -rf target/snapshots && mkdir -p target/snapshots
     cargo run -- --no-midi --song {{SONG}} --snapshot target/snapshots {{TIMES}}
 
+# Render the chord book or its flash cards offscreen into target/snapshots.
+# e.g. `just snapshot-book flash-cards --data-dir DIR --player NAME` (needs cleared chords)
+snapshot-book SCREEN="chord-book" *ARGS="":
+    rm -rf target/snapshots && mkdir -p target/snapshots
+    cargo run -- --no-midi --open {{SCREEN}} --snapshot target/snapshots --at=-100 {{ARGS}}
+
 # Render a song through the synth to target/<song>.wav, to listen without the app
 listen SONG="ode-to-joy":
     cargo run --release -- --song {{SONG}} --render-wav target/{{SONG}}.wav
