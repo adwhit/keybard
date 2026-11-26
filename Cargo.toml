@@ -40,8 +40,6 @@ bevy = { version = "0.20.1", default-features = false, features = [
     # Clicking buttons
     "bevy_picking",
     "ui_picking",
-    # Synthesised notes play through bevy_audio; no file codecs needed
-    "bevy_audio",
     # Offscreen snapshots are saved as PNG
     "png",
 ] }
@@ -59,6 +57,7 @@ directories = "6.0.0"
 midir = "0.11.1"
 # Without the default "parallel" feature, which pulls in rayon.
 midly = { version = "0.5.3", default-features = false, features = ["std"] }
+rodio = { version = "0.22.2", default-features = false, features = ["playback", "tracing"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
 
@@ -73,6 +72,8 @@ debug = false
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.21.2", default-features = false }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["CFString"] }
+objc2-io-kit = { version = "0.3.2", default-features = false, features = ["pwr_mgt"] }
 
 # A little optimisation for our own crate makes headless test frames cheaper
 # without slowing incremental builds noticeably.

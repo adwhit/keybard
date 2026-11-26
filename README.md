@@ -106,6 +106,12 @@ keep nothing unless given `--data-dir`.
 A finished song in Listen mode ends on a card: **Play it** (start it over in
 Play mode), **Listen again**, **Next song** or **Start screen**.
 
+Laptop playback requests a small audio buffer for more responsive keypresses
+and falls back to standard playback if the output device rejects it. Playback
+follows the system default output when you connect or disconnect headphones.
+
+On macOS, playing a MIDI keyboard refreshes the display sleep timer.
+
 If your MIDI keyboard makes its own sound, **Mute MIDI keyboard** (start
 screen, Play menu, F7 or `--mute-midi`) stops keybard doubling it. Only your
 MIDI notes go quiet: computer keys still sound, and so does everything

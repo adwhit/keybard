@@ -545,22 +545,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_audio"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68c5094f06cce47a4134513d6368c0d6b8c2482b61a0255e51fc955fa434ddfc"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_ecs",
- "bevy_math",
- "bevy_reflect",
- "bevy_transform",
- "rodio",
- "tracing",
-]
-
-[[package]]
 name = "bevy_camera"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -924,7 +908,6 @@ dependencies = [
  "bevy_android",
  "bevy_app",
  "bevy_asset",
- "bevy_audio",
  "bevy_camera",
  "bevy_clipboard",
  "bevy_color",
@@ -3028,6 +3011,9 @@ dependencies = [
  "midir",
  "midly",
  "muda",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "rodio",
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
@@ -3754,6 +3740,15 @@ dependencies = [
  "block2 0.6.2",
  "libc",
  "objc2 0.6.5",
+ "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-io-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33fafba39597d6dc1fb709123dfa8289d39406734be322956a69f0931c73bb15"
+dependencies = [
  "objc2-core-foundation",
 ]
 

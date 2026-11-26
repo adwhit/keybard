@@ -11,6 +11,8 @@ mod audio;
 mod autopilot;
 pub mod book;
 pub mod controls;
+#[cfg(target_os = "macos")]
+mod display_activity;
 pub mod drill;
 pub mod effects;
 pub mod falling;
@@ -38,7 +40,6 @@ mod widgets;
 use std::time::Duration;
 
 use bevy::app::{PluginGroupBuilder, ScheduleRunnerPlugin};
-use bevy::audio::AudioPlugin;
 use bevy::camera::ScalingMode;
 use bevy::ecs::schedule::SingleThreadedExecutor;
 use bevy::log::LogPlugin;
@@ -191,7 +192,6 @@ fn default_plugins(backend: &Backend, logging: Logging, title: &str) -> PluginGr
                 ..default()
             })
             .disable::<WinitPlugin>()
-            .disable::<AudioPlugin>()
             .add(ScheduleRunnerPlugin::run_loop(HEADLESS_FRAME)),
         Backend::Offscreen(_) => DefaultPlugins
             .set(WindowPlugin {
@@ -200,7 +200,6 @@ fn default_plugins(backend: &Backend, logging: Logging, title: &str) -> PluginGr
                 ..default()
             })
             .disable::<WinitPlugin>()
-            .disable::<AudioPlugin>()
             .add(ScheduleRunnerPlugin::run_loop(Duration::ZERO)),
     };
     match logging {
@@ -318,7 +317,7 @@ pub fn build(options: Options) -> App {
         Backend::Windowed => {
             app.add_plugins(audio::plugin);
             #[cfg(target_os = "macos")]
-            app.add_plugins(menubar::plugin);
+            app.add_plugins((menubar::plugin, display_activity::plugin));
         }
         Backend::Headless => {
             app.add_systems(Update, exit_when_finished.after(Phase::Present));
